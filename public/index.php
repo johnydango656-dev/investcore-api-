@@ -48,11 +48,11 @@ if (isset($_GET['ref'])) {
     $_SESSION['referred_by'] = htmlspecialchars($_GET['ref']);
 }
 
-// Plans definition (In-adjust ang daily returns)
+// Plans definition (15 Days + Auto Re-invest Cycle)
 $plans = [
-    'Starter Plan' => ['price' => 10, 'return_daily' => 0.80, 'days' => 15],
-    'Growth Plan'  => ['price' => 50, 'return_daily' => 4.00, 'days' => 15],
-    'Pro Plan'     => ['price' => 200, 'return_daily' => 16.00, 'days' => 15]
+    'Starter Plan' => ['price' => 10, 'return_daily' => 0.80, 'days' => 15, 'reinvest' => true],
+    'Growth Plan'  => ['price' => 50, 'return_daily' => 4.00, 'days' => 15, 'reinvest' => true],
+    'Pro Plan'     => ['price' => 200, 'return_daily' => 16.00, 'days' => 15, 'reinvest' => true]
 ];
 
 // Admin Authentication Action
@@ -129,11 +129,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'type' => 'subscription',
                 'plan' => $selectedPlanKey,
                 'amount' => $plan['price'],
+                'cycle' => '15 Days (Auto Re-invest)',
                 'status' => 'active',
                 'created_at' => date('Y-m-d H:i:s')
             ];
             saveData($dataFile, $db);
-            $success = "Matagumpay kang nag-subscribe sa $selectedPlanKey!";
+            $success = "Matagumpay kang nag-subscribe sa $selectedPlanKey (15 Days + Re-invest)!";
         }
     }
 }
@@ -282,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <select name="plan_name" id="plan_name">
                     <?php foreach ($plans as $name => $details): ?>
                         <option value="<?= htmlspecialchars($name) ?>">
-                            <?= htmlspecialchars($name) ?> (Dep: $<?= number_format($details['price'], 2) ?> | Return: $<?= number_format($details['return_daily'], 2) ?>/day)
+                            <?= htmlspecialchars($name) ?> (Dep: $<?= number_format($details['price'], 2) ?> | $<?= number_format($details['return_daily'], 2) ?>/day | 15 Days + Re-invest)
                         </option>
                     <?php endforeach; ?>
                 </select>

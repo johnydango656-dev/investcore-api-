@@ -16,8 +16,8 @@ $historyFile = __DIR__ . '/transactions.json';
 $adminUser = 'admin';
 $adminPassword = 'admin123_secure';
 
-// PayMongo Secret Key (Palitan ng iyong totoong key o test key)
-$paymongoSecretKey = 'sk_test_IyongPayMongoSecretKeyDito';
+// PayMongo Live Secret Key
+$paymongoSecretKey = 'sk_live_W2bH6v6N13aWbCuh3Y41a5v8';
 
 function getData($file) {
     if (!file_exists($file)) return [];
@@ -28,195 +28,10 @@ function saveData($file, $data) {
     file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT));
 }
 
-$message = '';
-$error = '';
-$currentUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]";
-
-// 1. PAYMONGO SUCCESS REDIRECT (DEPOSIT)
-if (isset($_GET['paymongo_success']) && isset($_GET['amount']) && isset($_GET['user_email'])) {
-    $amount = floatval($_GET['amount']);
-    $email = $_GET['user_email'];
-
-    $users = getData($usersFile);
-    $transactions = getData($historyFile);
-
-    // Update user balance
-    foreach ($users as &$u) {
-        if ($u['email'] === $email) {
-            $u['balance'] += $amount;
-            break;
-        }
-    }
-    saveData($usersFile, $users);
-
-    // Save Transaction
-    $record = [
-        'id' => uniqid('txn_pm_'),
-        'type' => 'DEPOSIT (PayMongo)',
-        'user' => $email,
-        'amount' => $amount,
-        'status' => 'SUCCESS',
-        'timestamp' => date('Y-m-d H:i:s')
-    ];
-    array_unshift($transactions, $record);
-    saveData($historyFile, $transactions);
-
-    header("Location: /?dashboard=1&msg=Deposit_Success");
-    exit;
-}
-
-// 2. HANDLE POST REQUESTS (REGISTER, LOGIN, DEPOSIT, WITHDRAW)
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-
-    // REGISTRATION
-    if ($action === 'register') {
-        $name = trim($_POST['name'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $password = $_POST['password'] ?? '';
-
-        $users = getData($usersFile);
-        foreach ($users as $u) {
-            if ($u['email'] === $email) {
-                $error = 'May naka-register na account gamit ang email na ito.';
-                break;
-            }
-        }
-
-        if (empty($error)) {
-            $users[] = [
-                'name' => $name,
-                'email' => $email,
-                'password' => password_hash($password, PASSWORD_DEFAULT),
-                'balance' => 0.00
-            ];
-            saveData($usersFile, $users);
-            $message = 'Account created successfully! Mag-login na gamit ang iyong email.';
-        }
-    }
-
-    // LOGIN
-    elseif ($action === 'login') {
-        $email = trim($_POST['email'] ?? '');
-        $password = $_POST['password'] ?? '';
-
-        $users = getData($usersFile);
-        $found = false;
-        foreach ($users as $u) {
-            if ($u['email'] === $email && password_verify($password, $u['password'])) {
-                $_SESSION['client_email'] = $u['email'];
-                $_SESSION['client_name'] = $u['name'];
-                $found = true;
-                break;
-            }
-        }
-
-        if ($found) {
-            header('Location: /?dashboard=1');
-            exit;
-        } else {
-            $error = 'Mali ang email o password.';
-        }
-    }
-
-    // DEPOSIT VIA PAYMONGO
-    elseif ($action === 'deposit' && isset($_SESSION['client_email'])) {
-        $amount = floatval($_POST['amount'] ?? 0);
-        if ($amount > 0) {
-            $amountInCentavos = intval($amount * 100);
-            $email = $_SESSION['client_email'];
-            $successUrl = $currentUrl . "/?paymongo_success=1&amount=$amount&user_email=" . urlencode($email);
-            $cancelUrl = $currentUrl . "/?dashboard=1&cancel=1";
-
-            $payload = [
-                'data' => [
-                    'attributes' => [
-                        'line_items' => [[
-                            'currency' => 'PHP',
-                            'amount' => $amountInCentavos,
-                            'name' => 'InvestCore Deposit (' . $email . ')',
-                            'quantity' => 1
-                        ]],
-                        'payment_method_types' => ['gcash', 'paymaya', 'card', 'dob'],
-                        'success_url' => $successUrl,
-                        'cancel_url' => $cancelUrl,
-                        'description' => 'Client Account Deposit'
-                    ]
-                ]
-            ];
-
-            $ch = curl_init('https://api.paymongo.com/v1/checkout_sessions');
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Authorization: Basic ' . base64_encode($paymongoSecretKey . ':')
-            ]);
-
-            $response = curl_exec($ch);
-            curl_close($ch);
-            $resData = json_decode($response, true);
-
-            if (isset($resData['data']['attributes']['checkout_url'])) {
-                header('Location: ' . $resData['data']['attributes']['checkout_url']);
-                exit;
-            } else {
-                $error = 'May error sa PayMongo connection. Pakitingnan ang iyong Secret Key.';
-            }
-        }
-    }
-
-    // WITHDRAWAL REQUEST
-    elseif ($action === 'withdraw' && isset($_SESSION['client_email'])) {
-        $amount = floatval($_POST['amount'] ?? 0);
-        $email = $_SESSION['client_email'];
-
-        $users = getData($usersFile);
-        $userIndex = -1;
-        foreach ($users as $index => $u) {
-            if ($u['email'] === $email) {
-                $userIndex = $index;
-                break;
-            }
-        }
-
-        if ($userIndex !== -1 && $users[$userIndex]['balance'] >= $amount && $amount > 0) {
-            // Bawasan ang balance ng user
-            $users[$userIndex]['balance'] -= $amount;
-            saveData($usersFile, $users);
-
-            // I-save sa transaction history
-            $transactions = getData($historyFile);
-            $record = [
-                'id' => uniqid('txn_wd_'),
-                'type' => 'WITHDRAWAL REQUEST',
-                'user' => $email,
-                'amount' => $amount,
-                'status' => 'PENDING',
-                'timestamp' => date('Y-m-d H:i:s')
-            ];
-            array_unshift($transactions, $record);
-            saveData($historyFile, $transactions);
-
-            $message = 'Withdrawal request sent successfully!';
-        } else {
-            $error = 'Hindi sapat ang iyong balanse para sa withdrawal na ito.';
-        }
-    }
-}
-
-// LOGOUT
-if (isset($_GET['logout'])) {
-    unset($_SESSION['client_email']);
-    unset($_SESSION['client_name']);
-    header('Location: /');
-    exit;
-}
-
-// 3. ADMIN DASHBOARD ROUTE
+// 1. ADMIN ROUTE
 if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false) {
     header('Content-Type: text/html');
+    
     $enteredUser = $_POST['admin_user'] ?? '';
     $enteredPass = $_POST['admin_pass'] ?? '';
     $isAdminLoggedIn = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true;
@@ -251,11 +66,11 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
         <body>
             <div class="card">
                 <h3>Admin Portal Login</h3>
-                <?php if ($enteredUser && !$isAdminLoggedIn): ?>
+                <?php if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!$isAdminLoggedIn)): ?>
                     <div class="error">Mali ang ID o password!</div>
                 <?php endif; ?>
                 <form method="POST">
-                    <input type="text" name="admin_user" placeholder="Admin ID / Username" required>
+                    <input type="text" name="admin_user" placeholder="Admin ID / Username (admin)" required>
                     <input type="password" name="admin_pass" placeholder="Admin Password" required>
                     <button type="submit">Mag-login</button>
                 </form>
@@ -353,7 +168,178 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
     exit;
 }
 
-// 4. CLIENT DASHBOARD (KUNG NAKA-LOGIN NA)
+$message = '';
+$error = '';
+$currentUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]";
+
+if (isset($_GET['paymongo_success']) && isset($_GET['amount']) && isset($_GET['user_email'])) {
+    $amount = floatval($_GET['amount']);
+    $email = $_GET['user_email'];
+
+    $users = getData($usersFile);
+    $transactions = getData($historyFile);
+
+    foreach ($users as &$u) {
+        if ($u['email'] === $email) {
+            $u['balance'] += $amount;
+            break;
+        }
+    }
+    saveData($usersFile, $users);
+
+    $record = [
+        'id' => uniqid('txn_pm_'),
+        'type' => 'DEPOSIT (PayMongo)',
+        'user' => $email,
+        'amount' => $amount,
+        'status' => 'SUCCESS',
+        'timestamp' => date('Y-m-d H:i:s')
+    ];
+    array_unshift($transactions, $record);
+    saveData($historyFile, $transactions);
+
+    header("Location: /?dashboard=1&msg=Deposit_Success");
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+
+    if ($action === 'register') {
+        $name = trim($_POST['name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        $users = getData($usersFile);
+        foreach ($users as $u) {
+            if ($u['email'] === $email) {
+                $error = 'May naka-register na account gamit ang email na ito.';
+                break;
+            }
+        }
+
+        if (empty($error)) {
+            $users[] = [
+                'name' => $name,
+                'email' => $email,
+                'password' => password_hash($password, PASSWORD_DEFAULT),
+                'balance' => 0.00
+            ];
+            saveData($usersFile, $users);
+            $message = 'Account created successfully! Mag-login na.';
+        }
+    }
+    elseif ($action === 'login') {
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        $users = getData($usersFile);
+        $found = false;
+        foreach ($users as $u) {
+            if ($u['email'] === $email && password_verify($password, $u['password'])) {
+                $_SESSION['client_email'] = $u['email'];
+                $_SESSION['client_name'] = $u['name'];
+                $found = true;
+                break;
+            }
+        }
+
+        if ($found) {
+            header('Location: /?dashboard=1');
+            exit;
+        } else {
+            $error = 'Mali ang email o password.';
+        }
+    }
+    elseif ($action === 'deposit' && isset($_SESSION['client_email'])) {
+        $amount = floatval($_POST['amount'] ?? 0);
+        if ($amount > 0) {
+            $amountInCentavos = intval($amount * 100);
+            $email = $_SESSION['client_email'];
+            $successUrl = $currentUrl . "/?paymongo_success=1&amount=$amount&user_email=" . urlencode($email);
+            $cancelUrl = $currentUrl . "/?dashboard=1&cancel=1";
+
+            $payload = [
+                'data' => [
+                    'attributes' => [
+                        'line_items' => [[
+                            'currency' => 'PHP',
+                            'amount' => $amountInCentavos,
+                            'name' => 'InvestCore Deposit (' . $email . ')',
+                            'quantity' => 1
+                        ]],
+                        'payment_method_types' => ['gcash', 'paymaya', 'card', 'dob'],
+                        'success_url' => $successUrl,
+                        'cancel_url' => $cancelUrl,
+                        'description' => 'Client Account Deposit'
+                    ]
+                ]
+            ];
+
+            $ch = curl_init('https://api.paymongo.com/v1/checkout_sessions');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Authorization: Basic ' . base64_encode($paymongoSecretKey . ':')
+            ]);
+
+            $response = curl_exec($ch);
+            curl_close($ch);
+            $resData = json_decode($response, true);
+
+            if (isset($resData['data']['attributes']['checkout_url'])) {
+                header('Location: ' . $resData['data']['attributes']['checkout_url']);
+                exit;
+            } else {
+                $error = 'May error sa PayMongo connection.';
+            }
+        }
+    }
+    elseif ($action === 'withdraw' && isset($_SESSION['client_email'])) {
+        $amount = floatval($_POST['amount'] ?? 0);
+        $email = $_SESSION['client_email'];
+
+        $users = getData($usersFile);
+        $userIndex = -1;
+        foreach ($users as $index => $u) {
+            if ($u['email'] === $email) {
+                $userIndex = $index;
+                break;
+            }
+        }
+
+        if ($userIndex !== -1 && $users[$userIndex]['balance'] >= $amount && $amount > 0) {
+            $users[$userIndex]['balance'] -= $amount;
+            saveData($usersFile, $users);
+
+            $transactions = getData($historyFile);
+            $record = [
+                'id' => uniqid('txn_wd_'),
+                'type' => 'WITHDRAWAL REQUEST',
+                'user' => $email,
+                'amount' => $amount,
+                'status' => 'PENDING',
+                'timestamp' => date('Y-m-d H:i:s')
+            ];
+            array_unshift($transactions, $record);
+            saveData($historyFile, $transactions);
+
+            $message = 'Withdrawal request sent successfully!';
+        } else {
+            $error = 'Hindi sapat ang balanse.';
+        }
+    }
+}
+
+if (isset($_GET['logout'])) {
+    unset($_SESSION['client_email']);
+    unset($_SESSION['client_name']);
+    header('Location: /');
+    exit;
+}
+
 if (isset($_SESSION['client_email'])) {
     $email = $_SESSION['client_email'];
     $users = getData($usersFile);
@@ -418,7 +404,6 @@ if (isset($_SESSION['client_email'])) {
     exit;
 }
 
-// 5. CLIENT LOGIN / REGISTER PAGE (DEFAULT VIEW)
 $view = $_GET['view'] ?? 'login';
 ?>
 <!DOCTYPE html>
@@ -426,7 +411,7 @@ $view = $_GET['view'] ?? 'login';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InvestCore Portal - Login / Register</title>
+    <title>InvestCore Portal</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f4f6f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }

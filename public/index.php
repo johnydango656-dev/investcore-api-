@@ -142,7 +142,7 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
             </div>
         </body>
         </html>
-        <?>
+        <?php
         exit;
     }
 
@@ -279,7 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     elseif ($action === 'deposit' && isset($_SESSION['client_email'])) {
         $amount = floatval($_POST['amount'] ?? 0);
-        if ($amount > 0 && $amount <= 50000) { // Limit up to 50k
+        if ($amount > 0 && $amount <= 50000) {
             $amountInCentavos = intval($amount * 100);
             $email = $_SESSION['client_email'];
             $successUrl = $currentUrl . "/?paymongo_success=1&amount=$amount&user_email=" . urlencode($email);
@@ -341,13 +341,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($u['balance'] >= $selectedPlan['deposit']) {
                         $u['balance'] -= $selectedPlan['deposit'];
                         
-                        // I-save ang subscription kasama ang eksaktong oras para sa 24-hour daily claim limit
                         $subs[] = [
                             'email' => $email,
                             'plan' => $selectedPlan['name'],
                             'daily_earning' => $selectedPlan['daily'],
                             'start_time' => time(),
-                            'next_claim_time' => time() + 86400, // 24 hours
+                            'next_claim_time' => time() + 86400,
                             'status' => 'ACTIVE'
                         ];
                         
@@ -371,19 +370,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($subs as &$sub) {
             if ($sub['email'] === $email && $sub['status'] === 'ACTIVE') {
                 if (time() >= $sub['next_claim_time']) {
-                    // Dagdagan ang balanse ng client ng daily earning
                     foreach ($users as &$u) {
                         if ($u['email'] === $email) {
                             $u['balance'] += $sub['daily_earning'];
                             break;
                         }
                     }
-                    // Reset para sa susunod na 24 oras (eksaktong oras ng susunod na claim)
                     $sub['next_claim_time'] = time() + 86400;
                     $updated = true;
                     $message = "Tagumpay na na-claim ang iyong daily return na ₱" . number_format($sub['daily_earning'], 2) . "!";
                 } else {
-                    $error = "Masyado pang maaga. Maaari mo itong i-claim eksaktong 24 oras mula nang huling claim/oras ng pag-subscribe.";
+                    $error = "Masyado pang maaga. Maaari mo itong i-claim eksaktong 24 oras mula nang huling claim.";
                 }
                 break;
             }
@@ -453,7 +450,6 @@ if (isset($_SESSION['client_email'])) {
             <?php if (!empty($message)): ?><div class="msg"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
             <?php if (!empty($error)): ?><div class="err"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
-            <!-- Deposit Form -->
             <form method="POST">
                 <label>Mag-deposit via PayMongo (Hanggang ₱50,000):</label>
                 <input type="number" name="amount" value="500" max="50000" step="any" required>
@@ -462,7 +458,6 @@ if (isset($_SESSION['client_email'])) {
 
             <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
 
-            <!-- Investment Plans Selection -->
             <?php if (!$clientSub): ?>
                 <form method="POST">
                     <label>Pumili ng Investment Plan:</label>

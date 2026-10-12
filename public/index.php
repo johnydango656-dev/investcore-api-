@@ -8,7 +8,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$requestUri = $_SERVER['REQUEST_URI'];
+$path = parse_url($requestUri, PHP_URL_PATH);
 $historyFile = __DIR__ . '/transactions.json';
 $adminPassword = 'admin123_secure';
 
@@ -23,8 +24,8 @@ function saveTransaction($file, $data) {
     file_put_contents($file, json_encode($transactions, JSON_PRETTY_PRINT));
 }
 
-// 1. DEPOSIT API ENDPOINT
-if ($uri === '/deposit') {
+// 1. DEPOSIT ENDPOINT
+if (strpos($path, '/deposit') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     $record = [
@@ -40,8 +41,8 @@ if ($uri === '/deposit') {
     exit;
 }
 
-// 2. WITHDRAWAL API ENDPOINT
-if ($uri === '/withdraw') {
+// 2. WITHDRAWAL ENDPOINT
+if (strpos($path, '/withdraw') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     $record = [
@@ -57,15 +58,15 @@ if ($uri === '/withdraw') {
     exit;
 }
 
-// 3. HISTORY API ENDPOINT
-if ($uri === '/history') {
+// 3. HISTORY ENDPOINT
+if (strpos($path, '/history') !== false) {
     header('Content-Type: application/json');
     echo json_encode(['status' => 'success', 'history' => getTransactions($historyFile)]);
     exit;
 }
 
-// 4. ADMIN DASHBOARD (/admin)
-if ($uri === '/admin') {
+// 4. ADMIN DASHBOARD
+if (strpos($path, '/admin') !== false) {
     header('Content-Type: text/html');
     $enteredPassword = $_POST['admin_pass'] ?? '';
     $isLoggedIn = ($_SERVER['REQUEST_METHOD'] === 'POST' && $enteredPassword === $adminPassword);
@@ -163,7 +164,7 @@ if ($uri === '/admin') {
     exit;
 }
 
-// 5. CLIENT PORTAL WEBSITE (GET /)
+// 5. DEFAULT: CLIENT PORTAL WEBSITE (GET /)
 header('Content-Type: text/html');
 ?>
 <!DOCTYPE html>
@@ -208,12 +209,14 @@ header('Content-Type: text/html');
             resultDiv.innerText = "Nagpoproseso...";
 
             try {
-                const response = await fetch('/' + type, {
+                // Gumamit tayo ng absolute path na may kasamang /deposit o /withdraw
+                const response = window.location.origin + '/' + type;
+                const res = await fetch(response, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: userId, amount: parseFloat(amount) })
                 });
-                const data = await response.json();
+                const data = await res.json();
                 resultDiv.innerText = "Status: " + data.message + "\nUri: " + data.data.type + "\nHalaga: $" + data.data.amount;
             } catch (err) {
                 resultDiv.innerText = "May error: " + err.message;

@@ -3,7 +3,7 @@ session_start();
 
 // Configuration: Palitan ang iyong USDT Wallet at Secret Admin Password dito
 $adminUsdtWallet = 'TUxYourUsdtWalletAddressHere123456789'; 
-$adminSecretPassword = 'my_super_secret_admin_password_123'; // Palitan ito ng gusto mong password
+$adminSecretPassword = 'my_super_secret_admin_password_123'; 
 $dataFile = __DIR__ . '/../data/system_data.json';
 
 // Utility functions for JSON storage
@@ -16,7 +16,7 @@ function loadData($filePath) {
     if (!file_exists($filePath)) {
         $initialData = [
             'users' => [],
-            'balances' => ['user_balance' => 0.00], // Simple balance tracking
+            'balances' => ['user_balance' => 0.00],
             'transactions' => []
         ];
         file_put_contents($filePath, json_encode($initialData, JSON_PRETTY_PRINT));
@@ -36,11 +36,11 @@ function saveData($filePath, $data) {
 
 $db = loadData($dataFile);
 
-// Plans definition
+// Plans definition (In-adjust ang daily returns)
 $plans = [
-    'Starter Plan' => ['price' => 10, 'return_daily' => 1.24, 'days' => 15], // Price in USDT
-    'Growth Plan' => ['price' => 50, 'return_daily' => 6.40, 'days' => 15],
-    'Pro Plan' => ['price' => 200, 'return_daily' => 27.00, 'days' => 15]
+    'Starter Plan' => ['price' => 10, 'return_daily' => 0.80, 'days' => 15],
+    'Growth Plan'  => ['price' => 50, 'return_daily' => 4.00, 'days' => 15],
+    'Pro Plan'     => ['price' => 200, 'return_daily' => 16.00, 'days' => 15]
 ];
 
 // Admin Authentication Action
@@ -66,7 +66,6 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     foreach ($db['transactions'] as &$txn) {
         if ($txn['id'] === $txnId && $txn['status'] === 'pending') {
             $txn['status'] = 'approved';
-            // Add to user balance
             $db['balances']['user_balance'] = ($db['balances']['user_balance'] ?? 0) + $txn['amount'];
             saveData($dataFile, $db);
             break;
@@ -111,7 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($currentBalance < $plan['price']) {
             $error = "Hindi sapat ang iyong balance para mag-subscribe sa plan na ito.";
         } else {
-            // Deduct balance and record subscription
             $db['balances']['user_balance'] -= $plan['price'];
             $db['transactions'][] = [
                 'id' => 'TXN-' . time(),
@@ -162,7 +160,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 <div class="container">
     <?php if (isset($_GET['route']) && $_GET['route'] === 'admin'): ?>
-        <!-- ADMIN PANEL -->
         <h2>Admin Panel (Secret)</h2>
         <?php if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true): ?>
             <div class="card">
@@ -178,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         <?php else: ?>
             <div class="card">
-                <p>Welcome, Admin! Narito ang mga pending deposits na kailangang i-verify at i-approve:</p>
+                <p>Welcome, Admin! Narito ang mga pending deposits:</p>
                 <table>
                     <tr>
                         <th>ID / Date</th>
@@ -216,7 +213,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
     <?php else: ?>
-        <!-- USER DASHBOARD -->
         <h2>Investment Dashboard</h2>
 
         <div class="balance-box">
@@ -231,7 +227,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-        <!-- Deposit Section -->
         <div class="card">
             <h3>Mag-deposit via USDT (TRC20)</h3>
             <p style="font-size: 13px; color: #94a3b8;">I-transfer ang USDT sa wallet address sa ibaba, pagkatapos ay isumite ang TXID:</p>
@@ -254,7 +249,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         <hr>
 
-        <!-- Subscription Section -->
         <div class="card">
             <h3>Mag-subscribe sa Plan</h3>
             <form method="POST">

@@ -54,7 +54,7 @@ function createPaymongoCheckoutSession($amount, $description, $secretKey) {
                         'currency' => 'PHP',
                         'amount' => intval($amount * 100), // Convert PHP to centavos
                         'description' => $description,
-                        'name' => 'Investment Plan Subscription',
+                        'name' => 'Investment Platform Payment',
                         'quantity' => 1
                     ]
                 ],
@@ -89,7 +89,37 @@ function createPaymongoCheckoutSession($amount, $description, $secretKey) {
     return json_decode($response, true);
 }
 
-// Action: Subscribe / Deposit
+// Action: Handle Deposit / Top-up
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'deposit') {
+    $amount = floatval($_POST['deposit_amount'] ?? 0);
+
+    if ($amount < 100) {
+        $error = "Ang minimum deposit ay ₱100.";
+    } else {
+        $result = createPaymongoCheckoutSession($amount, "Wallet Deposit / Top-up", $paymongoSecretKey);
+
+        if (isset($result['data']['attributes']['checkout_url'])) {
+            $checkoutUrl = $result['data']['attributes']['checkout_url'];
+            
+            $db['transactions'][] = [
+                'id' => 'TXN-' . time(),
+                'type' => 'deposit',
+                'amount' => $amount,
+                'status' => 'pending',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            saveData($dataFile, $db);
+
+            header("Location: " . $checkoutUrl);
+            exit();
+        } else {
+            $apiError = $result['errors'][0]['detail'] ?? 'Hindi maikonekta sa PayMongo gateway.';
+            $error = "PayMongo API Error: " . $apiError;
+        }
+    }
+}
+
+// Action: Handle Plan Subscription
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'subscribe') {
     $selectedPlanKey = $_POST['plan_name'] ?? 'Starter Plan';
     
@@ -104,9 +134,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (isset($result['data']['attributes']['checkout_url'])) {
             $checkoutUrl = $result['data']['attributes']['checkout_url'];
             
-            // Record pending transaction
             $db['transactions'][] = [
                 'id' => 'TXN-' . time(),
+                'type' => 'subscription',
                 'plan' => $selectedPlanKey,
                 'amount' => $amount,
                 'status' => 'pending',
@@ -114,11 +144,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             ];
             saveData($dataFile, $db);
 
-            // Redirect to PayMongo live checkout
             header("Location: " . $checkoutUrl);
             exit();
         } else {
-            $apiError = $result['errors'][0]['detail'] ?? 'Hindi maikonekta sa PayMongo gateway. Subukan muli.';
+            $apiError = $result['errors'][0]['detail'] ?? 'Hindi maikonekta sa PayMongo gateway.';
             $error = "PayMongo API Error: " . $apiError;
         }
     }
@@ -136,14 +165,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         h2 { text-align: center; color: #38bdf8; }
         .balance-box { background: #334155; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; font-size: 18px; font-weight: bold; }
         .card { background: #334155; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        .btn { display: block; width: 100%; padding: 12px; background: #d97706; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; }
-        .btn:hover { background: #b45309; }
-        select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
+        .btn-deposit { display: block; width: 100%; padding: 12px; background: #22c55e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; }
+        .btn-deposit:hover { background: #16a34a; }
+        .btn-subscribe { display: block; width: 100%; padding: 12px; background: #d97706; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; }
+        .btn-subscribe:hover { background: #b45309; }
+        select, input[type="number"] { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
         .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
         .alert-error { background: #ef4444; color: white; }
         .alert-success { background: #22c55e; color: white; }
         .logout-link { display: block; text-align: center; margin-top: 15px; color: #f87171; text-decoration: none; font-size: 14px; }
         .logout-link:hover { text-decoration: underline; }
+        hr { border: 0; border-top: 1px solid #475569; margin: 20px 0; }
     </style>
 </head>
 <body>
@@ -167,7 +199,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
 
+    <!-- Deposit Section -->
     <div class="card">
+        <h3>Mag-deposit (PayMongo)</h3>
+        <form method="POST">
+            <input type="hidden" name="action" value="deposit">
+            <label for="deposit_amount">Halaga ng Deposit (PHP):</label>
+            <input type="number" id="deposit_amount" name="deposit_amount" min="100" value="500" required>
+            <button type="submit" class="btn-deposit">Mag-deposit sa PayMongo</button>
+        </form>
+    </div>
+
+    <hr>
+
+    <!-- Subscription Section -->
+    <div class="card">
+        <h3>Mag-subscribe sa Plan</h3>
         <form method="POST">
             <input type="hidden" name="action" value="subscribe">
             <label for="plan_name">Pumili ng Investment Plan:</label>
@@ -178,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </option>
                 <?php endforeach; ?>
             </select>
-            <button type="submit" class="btn">Mag-subscribe sa Plan</button>
+            <button type="submit" class="btn-subscribe">Mag-subscribe sa Plan</button>
         </form>
     </div>
 

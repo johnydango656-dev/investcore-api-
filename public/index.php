@@ -8,16 +8,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-header('Content-Type: application/json');
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-
 $historyFile = __DIR__ . '/transactions.json';
 
+// Palitan mo dito ang iyong secure admin password para sa dashboard
+$adminPassword = 'admin123_secure';
+
 function getTransactions($file) {
-    if (!file_exists($file)) {
-        return [];
-    }
+    if (!file_exists($file)) return [];
     return json_decode(file_get_contents($file), true) ?? [];
 }
 
@@ -27,68 +26,205 @@ function saveTransaction($file, $data) {
     file_put_contents($file, json_encode($transactions, JSON_PRETTY_PRINT));
 }
 
+// 1. CLIENT DEPOSIT API / FORM HANDLER
 if ($uri === '/deposit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $userId = $input['user_id'] ?? 1;
-    $amount = floatval($input['amount'] ?? 0);
-
+    header('Content-Type: application/json');
     $record = [
         'id' => uniqid('txn_'),
         'type' => 'DEPOSIT',
-        'user_id' => $userId,
-        'amount' => $amount,
+        'user_id' => $input['user_id'] ?? 1,
+        'amount' => floatval($input['amount'] ?? 0),
         'status' => 'SUCCESS',
         'timestamp' => date('Y-m-d H:i:s')
     ];
-
     saveTransaction($historyFile, $record);
-
-    echo json_encode([
-        'status' => 'success',
-        'message' => 'Live deposit successful!',
-        'data' => $record
-    ]);
+    echo json_encode(['status' => 'success', 'message' => 'Deposit successful', 'data' => $record]);
     exit;
 }
 
+// 2. CLIENT WITHDRAWAL API / FORM HANDLER
 if ($uri === '/withdraw' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $userId = $input['user_id'] ?? 1;
-    $amount = floatval($input['amount'] ?? 0);
-
+    header('Content-Type: application/json');
     $record = [
         'id' => uniqid('txn_'),
         'type' => 'WITHDRAWAL',
-        'user_id' => $userId,
-        'amount' => $amount,
+        'user_id' => $input['user_id'] ?? 1,
+        'amount' => floatval($input['amount'] ?? 0),
         'status' => 'SUCCESS',
         'timestamp' => date('Y-m-d H:i:s')
     ];
-
     saveTransaction($historyFile, $record);
-
-    echo json_encode([
-        'status' => 'success',
-        'message' => 'Live withdrawal processed successfully!',
-        'data' => $record
-    ]);
+    echo json_encode(['status' => 'success', 'message' => 'Withdrawal successful', 'data' => $record]);
     exit;
 }
 
-if ($uri === '/history' || $uri === '/transactions') {
+// 3. API HISTORY (JSON)
+if ($uri === '/history') {
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'success', 'history' => getTransactions($historyFile)]);
+    exit;
+}
+
+// 4. ADMIN DASHBOARD (/admin)
+if ($uri === '/admin') {
+    header('Content-Type: text/html');
+    $enteredPassword = $_POST['admin_pass'] ?? '';
+    $isLoggedIn = false;
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $enteredPassword === $adminPassword) {
+        $isLoggedIn = true;
+    }
+
+    if (!$isLoggedIn) {
+        ?>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Admin Login - InvestCore</title>
+            <style>
+                body { font-family: sans-serif; background: #f4f6f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                .login-card { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 350px; text-align: center; }
+                input, button { width: 100%; padding: 12px; margin: 10px 0; box-sizing: border-box; font-size: 16px; border-radius: 4px; border: 1px solid #ccc; }
+                button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
+                h3 { margin-bottom: 20px; color: #333; }
+                .error { color: red; font-size: 13px; margin-bottom: 10px; }
+            </style>
+        </head>
+        <body>
+            <div class="login-card">
+                <h3>Admin Portal Login</h3>
+                <?php if ($_SERVER['REQUEST_METHOD'] === 'POST' && $enteredPassword !== $adminPassword): ?>
+                    <div class="error">Mali ang password!</div>
+                <?php endif; ?>
+                <form method="POST">
+                    <input type="password" name="admin_pass" placeholder="Admin Password" required>
+                    <button type="submit">Mag-login</button>
+                </form>
+            </div>
+        </body>
+        </html>
+        <?php
+        exit;
+    }
+
     $transactions = getTransactions($historyFile);
-    echo json_encode([
-        'status' => 'success',
-        'total_transactions' => count($transactions),
-        'history' => $transactions
-    ]);
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>InvestCore Admin Dashboard</title>
+        <style>
+            body { font-family: sans-serif; padding: 20px; background: #f4f6f9; color: #333; }
+            .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            h2 { color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
+            th { background: #007bff; color: white; }
+            .deposit { color: green; font-weight: bold; }
+            .withdrawal { color: red; font-weight: bold; }
+            .logout-btn { background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-size: 12px; cursor: pointer; text-decoration: none; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>
+                InvestCore Admin Dashboard
+                <a href="/admin" class="logout-btn">Mag-logout</a>
+            </h2>
+            <p>Lahat ng Client Deposit at Withdrawal Transactions:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Transaction ID</th>
+                        <th>Type</th>
+                        <th>User ID</th>
+                        <th>Amount</th>
+                        <th>Date & Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($transactions)): ?>
+                        <tr><td colspan="5" style="text-align:center;">Wala pang transaksiyon.</td></tr>
+                    <?php else: ?>
+                        <?php foreach ($transactions as $txn): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($txn['id']); ?></td>
+                                <td class="<?php echo strtolower($txn['type']); ?>"><?php echo htmlspecialchars($txn['type']); ?></td>
+                                <td><?php echo htmlspecialchars($txn['user_id']); ?></td>
+                                <td>$<?php echo number_format($txn['amount'], 2); ?></td>
+                                <td><?php echo htmlspecialchars($txn['timestamp']); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </body>
+    </html>
+    <?php
     exit;
 }
 
-echo json_encode([
-    'status' => 'success',
-    'message' => 'InvestCore API is active!',
-    'endpoints_available' => [
-        'POST /deposit' => 'Mag-simulate ng deposit (body: user_id, amount)',
-        'POST /withdraw' => 'Mag-simulate ng withdrawal (body: user_id, amount)',
-        'GET /history' => 'Tignan ang lahat ng transaction history'
-    ]
-]);
+// 5. CLIENT WEBSITE INTERFACE (GET /)
+header('Content-Type: text/html');
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InvestCore Client Portal</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f6f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: #fff; padding: 25px; border-radius: 8px; width: 100%; max-width: 400px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { color: #333; text-align: center; margin-bottom: 20px; }
+        label { font-size: 14px; font-weight: bold; color: #555; }
+        input, button { width: 100%; padding: 12px; margin: 8px 0 15px 0; box-sizing: border-box; font-size: 15px; border-radius: 4px; border: 1px solid #ccc; }
+        .btn-deposit { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-withdraw { background: #dc3545; color: white; border: none; font-weight: bold; cursor: pointer; }
+        #result { background: #e9ecef; padding: 10px; border-radius: 4px; font-size: 13px; white-space: pre-wrap; word-break: break-all; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>InvestCore Client Portal</h2>
+        <label>User ID:</label>
+        <input type="number" id="userId" value="1">
+        
+        <label>Amount ($):</label>
+        <input type="number" id="amount" value="100">
+        
+        <button class="btn-deposit" onclick="sendAction('deposit')">Mag-Deposit</button>
+        <button class="btn-withdraw" onclick="sendAction('withdraw')">Mag-Withdraw</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function sendAction(type) {
+            const userId = document.getElementById('userId').value;
+            const amount = document.getElementById('amount').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.style.display = "block";
+            resultDiv.innerText = "Nagpoproseso...";
+
+            try {
+                const response = await fetch('/' + type, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, amount: parseFloat(amount) })
+                });
+                const data = await response.json();
+                resultDiv.innerText = "Status: " + data.message + "\nUri: " + data.data.type + "\nHalaga: $" + data.data.amount;
+            } catch (err) {
+                resultDiv.innerText = "May error: " + err.message;
+            }
+        }
+    </script>
+</body>
+</html>

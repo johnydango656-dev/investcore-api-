@@ -1,11 +1,12 @@
 <?php
 session_start();
 
-// Configuration
-$paymongoSecretKey = 'sk_live_vWpTVPFntQuGqMqGTi5JiDtc';
+// Configuration: Palitan ang iyong USDT Wallet at Secret Admin Password dito
+$adminUsdtWallet = 'TUxYourUsdtWalletAddressHere123456789'; 
+$adminSecretPassword = 'my_super_secret_admin_password_123'; // Palitan ito ng gusto mong password
 $dataFile = __DIR__ . '/../data/system_data.json';
 
-// Utility functions for JSON storage (Auto-creates folder if missing)
+// Utility functions for JSON storage
 function loadData($filePath) {
     $dir = dirname($filePath);
     if (!is_dir($dir)) {
@@ -15,14 +16,14 @@ function loadData($filePath) {
     if (!file_exists($filePath)) {
         $initialData = [
             'users' => [],
-            'subscriptions' => [],
+            'balances' => ['user_balance' => 0.00], // Simple balance tracking
             'transactions' => []
         ];
         file_put_contents($filePath, json_encode($initialData, JSON_PRETTY_PRINT));
         return $initialData;
     }
     $content = file_get_contents($filePath);
-    return json_decode($content, true) ?? ['users' => [], 'subscriptions' => [], 'transactions' => []];
+    return json_decode($content, true) ?? ['users' => [], 'balances' => ['user_balance' => 0.00], 'transactions' => []];
 }
 
 function saveData($filePath, $data) {
@@ -37,118 +38,91 @@ $db = loadData($dataFile);
 
 // Plans definition
 $plans = [
-    'Starter Plan' => ['price' => 500, 'return_daily' => 62, 'days' => 15],
-    'Growth Plan' => ['price' => 2500, 'return_daily' => 320, 'days' => 15],
-    'Pro Plan' => ['price' => 10000, 'return_daily' => 1350, 'days' => 15]
+    'Starter Plan' => ['price' => 10, 'return_daily' => 1.24, 'days' => 15], // Price in USDT
+    'Growth Plan' => ['price' => 50, 'return_daily' => 6.40, 'days' => 15],
+    'Pro Plan' => ['price' => 200, 'return_daily' => 27.00, 'days' => 15]
 ];
 
-// Helper function to call PayMongo API
-function createPaymongoCheckoutSession($amount, $description, $secretKey) {
-    $url = 'https://api.paymongo.com/v1/checkout_sessions';
-    
-    $payload = [
-        'data' => [
-            'attributes' => [
-                'line_items' => [
-                    [
-                        'currency' => 'PHP',
-                        'amount' => intval($amount * 100), // Convert PHP to centavos
-                        'description' => $description,
-                        'name' => 'Investment Platform Payment',
-                        'quantity' => 1
-                    ]
-                ],
-                'payment_method_types' => ['gcash', 'paymaya', 'card', 'dob'],
-                'description' => $description,
-                'send_email_receipt' => false,
-                'show_description' => true,
-                'show_line_items' => true,
-                'success_url' => 'http://' . $_SERVER['HTTP_HOST'] . '/?status=success',
-                'cancel_url' => 'http://' . $_SERVER['HTTP_HOST'] . '/?status=cancelled'
-            ]
-        ]
-    ];
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Authorization: Basic ' . base64_encode($secretKey . ':')
-    ]);
-
-    $response = curl_exec($ch);
-    $err = curl_error($ch);
-    curl_close($ch);
-
-    if ($err) {
-        return ['error' => $err];
+// Admin Authentication Action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_login') {
+    if ($_POST['password'] === $adminSecretPassword) {
+        $_SESSION['is_admin'] = true;
+        header("Location: ?route=admin");
+        exit();
+    } else {
+        $adminError = "Maling password ng admin.";
     }
-
-    return json_decode($response, true);
 }
 
-// Action: Handle Deposit / Top-up
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'deposit') {
-    $amount = floatval($_POST['deposit_amount'] ?? 0);
+if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
+    unset($_SESSION['is_admin']);
+    header("Location: /");
+    exit();
+}
 
-    if ($amount < 100) {
-        $error = "Ang minimum deposit ay ₱100.";
-    } else {
-        $result = createPaymongoCheckoutSession($amount, "Wallet Deposit / Top-up", $paymongoSecretKey);
-
-        if (isset($result['data']['attributes']['checkout_url'])) {
-            $checkoutUrl = $result['data']['attributes']['checkout_url'];
-            
-            $db['transactions'][] = [
-                'id' => 'TXN-' . time(),
-                'type' => 'deposit',
-                'amount' => $amount,
-                'status' => 'pending',
-                'created_at' => date('Y-m-d H:i:s')
-            ];
+// Admin Action: Approve Transaction
+if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve'])) {
+    $txnId = $_GET['approve'];
+    foreach ($db['transactions'] as &$txn) {
+        if ($txn['id'] === $txnId && $txn['status'] === 'pending') {
+            $txn['status'] = 'approved';
+            // Add to user balance
+            $db['balances']['user_balance'] = ($db['balances']['user_balance'] ?? 0) + $txn['amount'];
             saveData($dataFile, $db);
-
-            header("Location: " . $checkoutUrl);
-            exit();
-        } else {
-            $apiError = $result['errors'][0]['detail'] ?? 'Hindi maikonekta sa PayMongo gateway.';
-            $error = "PayMongo API Error: " . $apiError;
+            break;
         }
     }
+    header("Location: ?route=admin");
+    exit();
 }
 
-// Action: Handle Plan Subscription
+// User Action: Submit USDT Deposit Proof
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_deposit') {
+    $amount = floatval($_POST['deposit_amount'] ?? 0);
+    $txid = trim($_POST['txid'] ?? '');
+
+    if ($amount < 5) {
+        $error = "Ang minimum USDT deposit ay 5 USDT.";
+    } elseif (empty($txid)) {
+        $error = "Mangyaring ilagay ang Transaction Hash (TXID).";
+    } else {
+        $db['transactions'][] = [
+            'id' => 'TXN-' . time(),
+            'type' => 'usdt_deposit',
+            'amount' => $amount,
+            'txid' => htmlspecialchars($txid),
+            'status' => 'pending',
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        saveData($dataFile, $db);
+        $success = "Naisumite na ang iyong deposit proof! Naghihintay ng beripikasyon ng admin.";
+    }
+}
+
+// User Action: Subscribe to Plan
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'subscribe') {
     $selectedPlanKey = $_POST['plan_name'] ?? 'Starter Plan';
+    $currentBalance = $db['balances']['user_balance'] ?? 0;
     
     if (!isset($plans[$selectedPlanKey])) {
         $error = "Invalid investment plan selected.";
     } else {
         $plan = $plans[$selectedPlanKey];
-        $amount = $plan['price'];
-        
-        $result = createPaymongoCheckoutSession($amount, "Subscription: $selectedPlanKey (15-Day Cycle)", $paymongoSecretKey);
-
-        if (isset($result['data']['attributes']['checkout_url'])) {
-            $checkoutUrl = $result['data']['attributes']['checkout_url'];
-            
+        if ($currentBalance < $plan['price']) {
+            $error = "Hindi sapat ang iyong balance para mag-subscribe sa plan na ito.";
+        } else {
+            // Deduct balance and record subscription
+            $db['balances']['user_balance'] -= $plan['price'];
             $db['transactions'][] = [
                 'id' => 'TXN-' . time(),
                 'type' => 'subscription',
                 'plan' => $selectedPlanKey,
-                'amount' => $amount,
-                'status' => 'pending',
+                'amount' => $plan['price'],
+                'status' => 'active',
                 'created_at' => date('Y-m-d H:i:s')
             ];
             saveData($dataFile, $db);
-
-            header("Location: " . $checkoutUrl);
-            exit();
-        } else {
-            $apiError = $result['errors'][0]['detail'] ?? 'Hindi maikonekta sa PayMongo gateway.';
-            $error = "PayMongo API Error: " . $apiError;
+            $success = "Matagumpay kang nag-subscribe sa $selectedPlanKey!";
         }
     }
 }
@@ -162,74 +136,145 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <style>
         body { font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
         .container { max-width: 500px; margin: 0 auto; background: #1e293b; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-        h2 { text-align: center; color: #38bdf8; }
+        h2, h3 { text-align: center; color: #38bdf8; }
         .balance-box { background: #334155; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; font-size: 18px; font-weight: bold; }
         .card { background: #334155; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        .btn-deposit { display: block; width: 100%; padding: 12px; background: #22c55e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; }
-        .btn-deposit:hover { background: #16a34a; }
-        .btn-subscribe { display: block; width: 100%; padding: 12px; background: #d97706; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; }
-        .btn-subscribe:hover { background: #b45309; }
-        select, input[type="number"] { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
+        .wallet-address { background: #0f172a; padding: 10px; border-radius: 6px; font-family: monospace; word-break: break-all; color: #38bdf8; text-align: center; margin: 10px 0; font-size: 13px; }
+        .btn { display: block; width: 100%; padding: 12px; background: #22c55e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; }
+        .btn:hover { background: #16a34a; }
+        .btn-sub { background: #d97706; }
+        .btn-sub:hover { background: #b45309; }
+        .btn-danger { background: #ef4444; }
+        select, input[type="number"], input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
         .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
         .alert-error { background: #ef4444; color: white; }
         .alert-success { background: #22c55e; color: white; }
-        .logout-link { display: block; text-align: center; margin-top: 15px; color: #f87171; text-decoration: none; font-size: 14px; }
-        .logout-link:hover { text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        th, td { border: 1px solid #475569; padding: 8px; text-align: left; }
+        th { background: #0f172a; }
+        .footer-links { text-align: center; margin-top: 20px; font-size: 13px; }
+        .footer-links a { color: #94a3b8; text-decoration: none; }
+        .footer-links a:hover { color: #38bdf8; }
         hr { border: 0; border-top: 1px solid #475569; margin: 20px 0; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Investment Dashboard</h2>
+    <?php if (isset($_GET['route']) && $_GET['route'] === 'admin'): ?>
+        <!-- ADMIN PANEL -->
+        <h2>Admin Panel (Secret)</h2>
+        <?php if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true): ?>
+            <div class="card">
+                <form method="POST">
+                    <input type="hidden" name="action" value="admin_login">
+                    <label for="password">Admin Password:</label>
+                    <input type="password" id="password" name="password" required>
+                    <button type="submit" class="btn">Mag-login</button>
+                    <?php if (isset($adminError)): ?>
+                        <div class="alert alert-error" style="margin-top: 10px;"><?= htmlspecialchars($adminError) ?></div>
+                    <?php endif; ?>
+                </form>
+            </div>
+        <?php else: ?>
+            <div class="card">
+                <p>Welcome, Admin! Narito ang mga pending deposits na kailangang i-verify at i-approve:</p>
+                <table>
+                    <tr>
+                        <th>ID / Date</th>
+                        <th>Amount</th>
+                        <th>TXID</th>
+                        <th>Action</th>
+                    </tr>
+                    <?php 
+                    $hasPending = false;
+                    foreach ($db['transactions'] as $txn): 
+                        if ($txn['type'] === 'usdt_deposit' && $txn['status'] === 'pending'):
+                            $hasPending = true;
+                    ?>
+                    <tr>
+                        <td><?= htmlspecialchars($txn['id']) ?><br><small><?= htmlspecialchars($txn['created_at']) ?></small></td>
+                        <td>$<?= number_format($txn['amount'], 2) ?></td>
+                        <td style="word-break: break-all;"><?= htmlspecialchars($txn['txid']) ?></td>
+                        <td>
+                            <a href="?route=admin&approve=<?= $txn['id'] ?>" class="btn" style="padding: 5px 10px; font-size: 11px; display:inline-block;">Approve</a>
+                        </td>
+                    </tr>
+                    <?php 
+                        endif;
+                    endforeach; 
+                    if (!$hasPending):
+                    ?>
+                    <tr><td colspan="4" style="text-align: center;">Walang pending na deposit.</td></tr>
+                    <?php endif; ?>
+                </table>
+                <a href="?action=admin_logout" class="btn btn-danger" style="margin-top: 15px; text-align: center; text-decoration: none;">Mag-log out sa Admin</a>
+            </div>
+        <?php endif; ?>
+        <div class="footer-links">
+            <a href="/">Balik sa User Dashboard</a>
+        </div>
 
-    <div class="balance-box">
-        Balance: ₱0.00
-    </div>
+    <?php else: ?>
+        <!-- USER DASHBOARD -->
+        <h2>Investment Dashboard</h2>
 
-    <?php if (isset($_GET['status']) && $_GET['status'] === 'success'): ?>
-        <div class="alert alert-success">Salamat! Nareceived ang iyong payment request. Ia-update ang iyong account pagka-verify.</div>
+        <div class="balance-box">
+            Balance: $<?= number_format($db['balances']['user_balance'] ?? 0, 2) ?> USDT
+        </div>
+
+        <?php if (isset($success)): ?>
+            <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+        <?php endif; ?>
+
+        <?php if (isset($error)): ?>
+            <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
+
+        <!-- Deposit Section -->
+        <div class="card">
+            <h3>Mag-deposit via USDT (TRC20)</h3>
+            <p style="font-size: 13px; color: #94a3b8;">I-transfer ang USDT sa wallet address sa ibaba, pagkatapos ay isumite ang TXID:</p>
+            
+            <div class="wallet-address">
+                <?= htmlspecialchars($adminUsdtWallet) ?>
+            </div>
+
+            <form method="POST">
+                <input type="hidden" name="action" value="submit_deposit">
+                <label for="deposit_amount">Halaga (USDT):</label>
+                <input type="number" id="deposit_amount" name="deposit_amount" min="5" step="0.01" value="20" required>
+                
+                <label for="txid">Transaction Hash / TXID:</label>
+                <input type="text" id="txid" name="txid" placeholder="Ilagay ang TXID mula sa Binance/Wallet" required>
+
+                <button type="submit" class="btn">I-submit ang Deposit Proof</button>
+            </form>
+        </div>
+
+        <hr>
+
+        <!-- Subscription Section -->
+        <div class="card">
+            <h3>Mag-subscribe sa Plan</h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="subscribe">
+                <label for="plan_name">Pumili ng Investment Plan:</label>
+                <select name="plan_name" id="plan_name">
+                    <?php foreach ($plans as $name => $details): ?>
+                        <option value="<?= htmlspecialchars($name) ?>">
+                            <?= htmlspecialchars($name) ?> (Dep: $<?= number_format($details['price'], 2) ?> | Return: $<?= number_format($details['return_daily'], 2) ?>/day)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="btn btn-sub">Mag-subscribe sa Plan</button>
+            </form>
+        </div>
+
+        <div class="footer-links">
+            <a href="?route=admin">Admin Login</a>
+        </div>
     <?php endif; ?>
-
-    <?php if (isset($_GET['status']) && $_GET['status'] === 'cancelled'): ?>
-        <div class="alert alert-error">Nacancel ang iyong payment request.</div>
-    <?php endif; ?>
-
-    <?php if (isset($error)): ?>
-        <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
-    <?php endif; ?>
-
-    <!-- Deposit Section -->
-    <div class="card">
-        <h3>Mag-deposit (PayMongo)</h3>
-        <form method="POST">
-            <input type="hidden" name="action" value="deposit">
-            <label for="deposit_amount">Halaga ng Deposit (PHP):</label>
-            <input type="number" id="deposit_amount" name="deposit_amount" min="100" value="500" required>
-            <button type="submit" class="btn-deposit">Mag-deposit sa PayMongo</button>
-        </form>
-    </div>
-
-    <hr>
-
-    <!-- Subscription Section -->
-    <div class="card">
-        <h3>Mag-subscribe sa Plan</h3>
-        <form method="POST">
-            <input type="hidden" name="action" value="subscribe">
-            <label for="plan_name">Pumili ng Investment Plan:</label>
-            <select name="plan_name" id="plan_name">
-                <?php foreach ($plans as $name => $details): ?>
-                    <option value="<?= htmlspecialchars($name) ?>">
-                        <?= htmlspecialchars($name) ?> (Dep: ₱<?= number_format($details['price']) ?> | Return: ₱<?= number_format($details['return_daily']) ?>/day)
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <button type="submit" class="btn-subscribe">Mag-subscribe sa Plan</button>
-        </form>
-    </div>
-
-    <a href="#" class="logout-link">Mag-log out</a>
 </div>
 
 </body>

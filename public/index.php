@@ -83,10 +83,10 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($ch, CURLOPT_USERPWD, $paymongoSecretKey . ':');
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
                         'Content-Type: application/json',
-                        'Accept: application/json',
-                        'Authorization: Basic ' . base64_encode($paymongoSecretKey . ':')
+                        'Accept: application/json'
                     ]);
 
                     $response = curl_exec($ch);
@@ -307,10 +307,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_USERPWD, $paymongoSecretKey . ':');
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
-                'Accept: application/json',
-                'Authorization: Basic ' . base64_encode($paymongoSecretKey . ':')
+                'Accept: application/json'
             ]);
 
             $response = curl_exec($ch);
@@ -343,7 +343,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $users = getData($usersFile);
             $subs = getData($subsFile);
             
-            // Suriin kung may active pa
             $hasActive = false;
             foreach ($subs as $s) {
                 if ($s['email'] === $email && $s['status'] === 'ACTIVE' && time() < $s['expire_time']) {
@@ -360,7 +359,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($u['balance'] >= $selectedPlan['deposit']) {
                             $u['balance'] -= $selectedPlan['deposit'];
                             
-                            // 15 days cycle expiration (15 days * 86400 seconds)
                             $currentTime = time();
                             $subs[] = [
                                 'email' => $email,
@@ -368,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'daily_earning' => $selectedPlan['daily'],
                                 'start_time' => $currentTime,
                                 'next_claim_time' => $currentTime + 86400,
-                                'expire_time' => $currentTime + (15 * 86400), // 15 Days Limit
+                                'expire_time' => $currentTime + (15 * 86400),
                                 'status' => 'ACTIVE'
                             ];
                             
@@ -392,10 +390,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         foreach ($subs as &$sub) {
             if ($sub['email'] === $email && $sub['status'] === 'ACTIVE') {
-                // Suriin kung lumipas na ang 15 days expiration
                 if (time() >= $sub['expire_time']) {
                     $sub['status'] = 'EXPIRED';
-                    $error = "Tapos na ang iyong 15-day cycle para sa plan na ito. Maaari ka nang mag-re-entry o mag-subscribe ulit.";
+                    $error = "Tapos na ang iyong 15-day cycle para sa plan na ito. Maaari ka nang mag-re-entry.";
                     break;
                 }
 

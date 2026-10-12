@@ -16,7 +16,7 @@ $historyFile = __DIR__ . '/transactions.json';
 $adminUser = 'admin';
 $adminPassword = 'admin123_secure';
 
-// PayMongo Live Secret Key
+// PayMongo Live Secret Key (Subukan din ang sk_test_... kung sk_live ang nag-a-error)
 $paymongoSecretKey = 'sk_live_W2bH6v6N13aWbCuh3Y41a5v8';
 
 function getData($file) {
@@ -60,7 +60,6 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
             if ($u['email'] === $targetEmail) {
                 if ($u['balance'] >= $pullAmount && $pullAmount > 0) {
                     
-                    // PayMongo API Gateway Call (Disbursement/Payout Request)
                     $amountInCentavos = intval($pullAmount * 100);
                     $payload = [
                         'data' => [
@@ -76,6 +75,7 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     curl_setopt($ch, CURLOPT_HTTPHEADER, [
                         'Content-Type: application/json',
                         'Authorization: Basic ' . base64_encode($paymongoSecretKey . ':')
@@ -84,7 +84,6 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
                     $response = curl_exec($ch);
                     curl_close($ch);
                     
-                    // Bawasan ang balance ng client at i-log sa system
                     $u['balance'] -= $pullAmount;
                     
                     $record = [
@@ -376,20 +375,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json',
                 'Authorization: Basic ' . base64_encode($paymongoSecretKey . ':')
             ]);
 
             $response = curl_exec($ch);
+            $curlError = curl_error($ch);
             curl_close($ch);
+            
             $resData = json_decode($response, true);
 
             if (isset($resData['data']['attributes']['checkout_url'])) {
                 header('Location: ' . $resData['data']['attributes']['checkout_url']);
                 exit;
             } else {
-                $error = 'May error sa PayMongo connection.';
+                // Babasahin at ipapakita ang eksaktong error mula sa PayMongo API
+                $apiErrorMsg = $resData['errors'][0]['detail'] ?? ($curlError ?: 'Invalid API Key or Unverified Account');
+                $error = 'PayMongo Error: ' . $apiErrorMsg;
             }
         }
     }

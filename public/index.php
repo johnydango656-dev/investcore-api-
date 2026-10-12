@@ -36,6 +36,18 @@ function saveData($filePath, $data) {
 
 $db = loadData($dataFile);
 
+// Generate unique referral code for user session
+if (!isset($_SESSION['ref_code'])) {
+    $_SESSION['ref_code'] = 'REF' . rand(100000, 999999);
+}
+$userRefCode = $_SESSION['ref_code'];
+$referralLink = 'http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $userRefCode;
+
+// Capture referral if someone visits via link
+if (isset($_GET['ref'])) {
+    $_SESSION['referred_by'] = htmlspecialchars($_GET['ref']);
+}
+
 // Plans definition (In-adjust ang daily returns)
 $plans = [
     'Starter Plan' => ['price' => 10, 'return_daily' => 0.80, 'days' => 15],
@@ -90,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'type' => 'usdt_deposit',
             'amount' => $amount,
             'txid' => htmlspecialchars($txid),
+            'referred_by' => $_SESSION['referred_by'] ?? 'None',
             'status' => 'pending',
             'created_at' => date('Y-m-d H:i:s')
         ];
@@ -137,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         h2, h3 { text-align: center; color: #38bdf8; }
         .balance-box { background: #334155; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; font-size: 18px; font-weight: bold; }
         .card { background: #334155; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        .wallet-address { background: #0f172a; padding: 10px; border-radius: 6px; font-family: monospace; word-break: break-all; color: #38bdf8; text-align: center; margin: 10px 0; font-size: 13px; }
+        .wallet-address, .ref-box { background: #0f172a; padding: 10px; border-radius: 6px; font-family: monospace; word-break: break-all; color: #38bdf8; text-align: center; margin: 10px 0; font-size: 13px; }
         .btn { display: block; width: 100%; padding: 12px; background: #22c55e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; }
         .btn:hover { background: #16a34a; }
         .btn-sub { background: #d97706; }
@@ -179,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <table>
                     <tr>
                         <th>ID / Date</th>
-                        <th>Amount</th>
+                        <th>Amount / Ref</th>
                         <th>TXID</th>
                         <th>Action</th>
                     </tr>
@@ -191,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     ?>
                     <tr>
                         <td><?= htmlspecialchars($txn['id']) ?><br><small><?= htmlspecialchars($txn['created_at']) ?></small></td>
-                        <td>$<?= number_format($txn['amount'], 2) ?></td>
+                        <td>$<?= number_format($txn['amount'], 2) ?><br><small>Ref: <?= htmlspecialchars($txn['referred_by'] ?? 'None') ?></small></td>
                         <td style="word-break: break-all;"><?= htmlspecialchars($txn['txid']) ?></td>
                         <td>
                             <a href="?route=admin&approve=<?= $txn['id'] ?>" class="btn" style="padding: 5px 10px; font-size: 11px; display:inline-block;">Approve</a>
@@ -227,6 +240,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
+        <!-- Referral Section -->
+        <div class="card">
+            <h3>Iyong Referral Link</h3>
+            <p style="font-size: 13px; color: #94a3b8;">I-share ang link na ito sa iyong mga kaibigan para ma-track kung sino ang nag-invite sa kanila:</p>
+            <div class="ref-box" id="refLinkText"><?= htmlspecialchars($referralLink) ?></div>
+            <button type="button" class="btn" style="background: #38bdf8; color: #0f172a;" onclick="navigator.clipboard.writeText('<?= $referralLink ?>'); alert('Copied na ang referral link!');">Kopyahin ang Referral Link</button>
+        </div>
+
+        <hr>
+
+        <!-- Deposit Section -->
         <div class="card">
             <h3>Mag-deposit via USDT (TRC20)</h3>
             <p style="font-size: 13px; color: #94a3b8;">I-transfer ang USDT sa wallet address sa ibaba, pagkatapos ay isumite ang TXID:</p>
@@ -249,6 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         <hr>
 
+        <!-- Subscription Section -->
         <div class="card">
             <h3>Mag-subscribe sa Plan</h3>
             <form method="POST">

@@ -47,6 +47,67 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
         exit;
     }
 
+    $adminActionMsg = '';
+    $users = getData($usersFile);
+    $transactions = getData($historyFile);
+
+    // ADMIN ACTION: PULL OUT INVESTMENT VIA SECURE PAYMONGO GATEWAY
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action']) && $_POST['admin_action'] === 'admin_paymongo_pullout') {
+        $targetEmail = $_POST['client_email'] ?? '';
+        $pullAmount = floatval($_POST['pull_amount'] ?? 0);
+
+        foreach ($users as &$u) {
+            if ($u['email'] === $targetEmail) {
+                if ($u['balance'] >= $pullAmount && $pullAmount > 0) {
+                    
+                    // PayMongo API Gateway Call (Disbursement/Payout Request)
+                    $amountInCentavos = intval($pullAmount * 100);
+                    $payload = [
+                        'data' => [
+                            'attributes' => [
+                                'amount' => $amountInCentavos,
+                                'currency' => 'PHP',
+                                'description' => 'Secure Admin Fund Transfer - Investment Rolling (' . $targetEmail . ')'
+                            ]
+                        ]
+                    ];
+
+                    $ch = curl_init('https://api.paymongo.com/v1/payouts');
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/json',
+                        'Authorization: Basic ' . base64_encode($paymongoSecretKey . ':')
+                    ]);
+
+                    $response = curl_exec($ch);
+                    curl_close($ch);
+                    
+                    // Bawasan ang balance ng client at i-log sa system
+                    $u['balance'] -= $pullAmount;
+                    
+                    $record = [
+                        'id' => uniqid('pm_payout_'),
+                        'type' => 'INVESTMENT DEPLOYED',
+                        'user' => $targetEmail,
+                        'amount' => $pullAmount,
+                        'status' => 'SUCCESS (PayMongo Gateway)',
+                        'timestamp' => date('Y-m-d H:i:s')
+                    ];
+                    array_unshift($transactions, $record);
+                    saveData($historyFile, $transactions);
+                    saveData($usersFile, $users);
+
+                    $adminActionMsg = "Ligtas na na-process sa PayMongo Gateway ang ₱" . number_format($pullAmount, 2) . " para kay $targetEmail!";
+                } else {
+                    $adminActionMsg = "Error: Kulang ang balanse ng client o invalid ang amount.";
+                }
+                break;
+            }
+        }
+    }
+
     if (!$isAdminLoggedIn) {
         ?>
         <!DOCTYPE html>
@@ -70,7 +131,7 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
                     <div class="error">Mali ang ID o password!</div>
                 <?php endif; ?>
                 <form method="POST">
-                    <input type="text" name="admin_user" placeholder="Admin ID / Username (admin)" required>
+                    <input type="text" name="admin_user" placeholder="Admin Username (admin)" required>
                     <input type="password" name="admin_pass" placeholder="Admin Password" required>
                     <button type="submit">Mag-login</button>
                 </form>
@@ -81,24 +142,34 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
         exit;
     }
 
-    $transactions = getData($historyFile);
-    $users = getData($usersFile);
+    $totalClientBalance = 0;
+    foreach ($users as $u) {
+        $totalClientBalance += $u['balance'];
+    }
     ?>
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Admin Dashboard</title>
+        <title>Admin Dashboard - PayMongo Secure Gateway</title>
         <style>
             body { font-family: sans-serif; padding: 20px; background: #f4f6f9; color: #333; }
-            .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
             h2 { color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+            .stats-box { display: flex; gap: 15px; margin-bottom: 25px; }
+            .stat-card { background: #e9ecef; padding: 15px; border-radius: 6px; flex: 1; text-align: center; }
+            .stat-card h4 { margin: 0 0 5px 0; color: #555; font-size: 14px; }
+            .stat-card span { font-size: 20px; font-weight: bold; color: #007bff; }
             table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 30px; }
             th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
             th { background: #007bff; color: white; }
             .logout-btn { background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-size: 12px; cursor: pointer; text-decoration: none; }
-            h3 { margin-top: 20px; color: #444; }
+            .action-form { display: flex; gap: 8px; align-items: center; }
+            .action-form input { width: 90px; padding: 6px; font-size: 13px; }
+            .action-form button { background: #28a745; color: white; border: none; padding: 7px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+            .msg { background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 15px; text-align: center; font-weight: bold; }
+            h3 { margin-top: 25px; color: #444; }
         </style>
     </head>
     <body>
@@ -108,31 +179,55 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
                 <a href="?admin=1&admin_logout=1" class="logout-btn">Mag-logout</a>
             </h2>
 
+            <?php if (!empty($adminActionMsg)): ?>
+                <div class="msg"><?php echo htmlspecialchars($adminActionMsg); ?></div>
+            <?php endif; ?>
+
+            <div class="stats-box">
+                <div class="stat-card">
+                    <h4>Total Client Active Balance</h4>
+                    <span>₱<?php echo number_format($totalClientBalance, 2); ?></span>
+                </div>
+            </div>
+
             <h3>Registered Clients</h3>
             <table>
                 <thead>
                     <tr>
                         <th>Name</th>
                         <th>Email</th>
-                        <th>Balance</th>
+                        <th>Client Balance</th>
+                        <th>Secure PayMongo Gateway Pullout</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($users)): ?>
-                        <tr><td colspan="3" style="text-align:center;">Wala pang nakarehistrong client.</td></tr>
+                        <tr><td colspan="4" style="text-align:center;">Wala pang nakarehistrong client.</td></tr>
                     <?php else: ?>
                         <?php foreach ($users as $u): ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($u['name']); ?></td>
                                 <td><?php echo htmlspecialchars($u['email']); ?></td>
-                                <td>₱<?php echo number_format($u['balance'], 2); ?></td>
+                                <td><b>₱<?php echo number_format($u['balance'], 2); ?></b></td>
+                                <td>
+                                    <?php if ($u['balance'] > 0): ?>
+                                        <form method="POST" class="action-form">
+                                            <input type="hidden" name="admin_action" value="admin_paymongo_pullout">
+                                            <input type="hidden" name="client_email" value="<?php echo htmlspecialchars($u['email']); ?>">
+                                            <input type="number" name="pull_amount" max="<?php echo $u['balance']; ?>" value="<?php echo $u['balance']; ?>" step="any" required>
+                                            <button type="submit">PayMongo Pullout</button>
+                                        </form>
+                                    <?php else: ?>
+                                        <span style="color: #888; font-size: 13px;">Walang pondo</span>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
             </table>
 
-            <h3>Transaction History (Deposits & Withdrawals)</h3>
+            <h3>System Transaction & Gateway History</h3>
             <table>
                 <thead>
                     <tr>
@@ -151,10 +246,10 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
                         <?php foreach ($transactions as $txn): ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($txn['id']); ?></td>
-                                <td><?php echo htmlspecialchars($txn['type']); ?></td>
+                                <td><b><?php echo htmlspecialchars($txn['type']); ?></b></td>
                                 <td><?php echo htmlspecialchars($txn['user']); ?></td>
                                 <td>₱<?php echo number_format($txn['amount'], 2); ?></td>
-                                <td><b><?php echo htmlspecialchars($txn['status']); ?></b></td>
+                                <td><span style="color: green; font-weight: bold;"><?php echo htmlspecialchars($txn['status']); ?></span></td>
                                 <td><?php echo htmlspecialchars($txn['timestamp']); ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -168,6 +263,7 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
     exit;
 }
 
+// 2. CLIENT DASHBOARD & PORTAL
 $message = '';
 $error = '';
 $currentUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]";
@@ -297,40 +393,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    elseif ($action === 'withdraw' && isset($_SESSION['client_email'])) {
-        $amount = floatval($_POST['amount'] ?? 0);
-        $email = $_SESSION['client_email'];
-
-        $users = getData($usersFile);
-        $userIndex = -1;
-        foreach ($users as $index => $u) {
-            if ($u['email'] === $email) {
-                $userIndex = $index;
-                break;
-            }
-        }
-
-        if ($userIndex !== -1 && $users[$userIndex]['balance'] >= $amount && $amount > 0) {
-            $users[$userIndex]['balance'] -= $amount;
-            saveData($usersFile, $users);
-
-            $transactions = getData($historyFile);
-            $record = [
-                'id' => uniqid('txn_wd_'),
-                'type' => 'WITHDRAWAL REQUEST',
-                'user' => $email,
-                'amount' => $amount,
-                'status' => 'PENDING',
-                'timestamp' => date('Y-m-d H:i:s')
-            ];
-            array_unshift($transactions, $record);
-            saveData($historyFile, $transactions);
-
-            $message = 'Withdrawal request sent successfully!';
-        } else {
-            $error = 'Hindi sapat ang balanse.';
-        }
-    }
 }
 
 if (isset($_GET['logout'])) {
@@ -374,7 +436,6 @@ if (isset($_SESSION['client_email'])) {
             label { font-size: 14px; font-weight: bold; color: #555; }
             input, button { width: 100%; padding: 12px; margin: 8px 0 15px 0; box-sizing: border-box; font-size: 15px; border-radius: 4px; border: 1px solid #ccc; }
             .btn-deposit { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
-            .btn-withdraw { background: #dc3545; color: white; border: none; font-weight: bold; cursor: pointer; }
             .logout-link { display: block; text-align: center; margin-top: 15px; color: #dc3545; text-decoration: none; font-size: 14px; }
             .msg { background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 15px; text-align: center; }
             .err { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 15px; text-align: center; }
@@ -389,11 +450,9 @@ if (isset($_SESSION['client_email'])) {
             <?php if (!empty($error)): ?><div class="err"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
             <form method="POST">
-                <label>Halaga (₱):</label>
+                <label>Halaga ng Ide-deposit (₱):</label>
                 <input type="number" name="amount" value="500" step="any" required>
-                
                 <button type="submit" name="action" value="deposit" class="btn-deposit">Mag-Deposit (PayMongo)</button>
-                <button type="submit" name="action" value="withdraw" class="btn-withdraw">Mag-Withdraw</button>
             </form>
 
             <a href="/?logout=1" class="logout-link">Mag-log out</a>

@@ -9,7 +9,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $requestUri = $_SERVER['REQUEST_URI'];
-$path = parse_url($requestUri, PHP_URL_PATH);
 $historyFile = __DIR__ . '/transactions.json';
 $adminPassword = 'admin123_secure';
 
@@ -24,8 +23,8 @@ function saveTransaction($file, $data) {
     file_put_contents($file, json_encode($transactions, JSON_PRETTY_PRINT));
 }
 
-// 1. DEPOSIT ENDPOINT
-if (strpos($path, '/deposit') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
+// 1. KUNG /deposit ang hiningi
+if (strpos($requestUri, 'deposit') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     $record = [
@@ -41,8 +40,8 @@ if (strpos($path, '/deposit') !== false && $_SERVER['REQUEST_METHOD'] === 'POST'
     exit;
 }
 
-// 2. WITHDRAWAL ENDPOINT
-if (strpos($path, '/withdraw') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
+// 2. KUNG /withdraw ang hiningi
+if (strpos($requestUri, 'withdraw') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     $record = [
@@ -58,15 +57,8 @@ if (strpos($path, '/withdraw') !== false && $_SERVER['REQUEST_METHOD'] === 'POST
     exit;
 }
 
-// 3. HISTORY ENDPOINT
-if (strpos($path, '/history') !== false) {
-    header('Content-Type: application/json');
-    echo json_encode(['status' => 'success', 'history' => getTransactions($historyFile)]);
-    exit;
-}
-
-// 4. ADMIN DASHBOARD
-if (strpos($path, '/admin') !== false) {
+// 3. KUNG /admin ang hiningi
+if (strpos($requestUri, 'admin') !== false) {
     header('Content-Type: text/html');
     $enteredPassword = $_POST['admin_pass'] ?? '';
     $isLoggedIn = ($_SERVER['REQUEST_METHOD'] === 'POST' && $enteredPassword === $adminPassword);
@@ -164,7 +156,7 @@ if (strpos($path, '/admin') !== false) {
     exit;
 }
 
-// 5. DEFAULT: CLIENT PORTAL WEBSITE (GET /)
+// 4. DEFAULT: CLIENT PORTAL WEBSITE (GET /)
 header('Content-Type: text/html');
 ?>
 <!DOCTYPE html>
@@ -209,14 +201,12 @@ header('Content-Type: text/html');
             resultDiv.innerText = "Nagpoproseso...";
 
             try {
-                // Gumamit tayo ng absolute path na may kasamang /deposit o /withdraw
-                const response = window.location.origin + '/' + type;
-                const res = await fetch(response, {
+                const response = await fetch('/' + type, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: userId, amount: parseFloat(amount) })
                 });
-                const data = await res.json();
+                const data = await response.json();
                 resultDiv.innerText = "Status: " + data.message + "\nUri: " + data.data.type + "\nHalaga: $" + data.data.amount;
             } catch (err) {
                 resultDiv.innerText = "May error: " + err.message;

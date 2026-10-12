@@ -9,10 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 $historyFile = __DIR__ . '/transactions.json';
-
-// Palitan mo dito ang iyong secure admin password para sa dashboard
 $adminPassword = 'admin123_secure';
 
 function getTransactions($file) {
@@ -26,9 +23,10 @@ function saveTransaction($file, $data) {
     file_put_contents($file, json_encode($transactions, JSON_PRETTY_PRINT));
 }
 
-// 1. CLIENT DEPOSIT API / FORM HANDLER
-if ($uri === '/deposit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+// 1. DEPOSIT API ENDPOINT
+if ($uri === '/deposit') {
     header('Content-Type: application/json');
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     $record = [
         'id' => uniqid('txn_'),
         'type' => 'DEPOSIT',
@@ -42,9 +40,10 @@ if ($uri === '/deposit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// 2. CLIENT WITHDRAWAL API / FORM HANDLER
-if ($uri === '/withdraw' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+// 2. WITHDRAWAL API ENDPOINT
+if ($uri === '/withdraw') {
     header('Content-Type: application/json');
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     $record = [
         'id' => uniqid('txn_'),
         'type' => 'WITHDRAWAL',
@@ -58,7 +57,7 @@ if ($uri === '/withdraw' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// 3. API HISTORY (JSON)
+// 3. HISTORY API ENDPOINT
 if ($uri === '/history') {
     header('Content-Type: application/json');
     echo json_encode(['status' => 'success', 'history' => getTransactions($historyFile)]);
@@ -69,11 +68,7 @@ if ($uri === '/history') {
 if ($uri === '/admin') {
     header('Content-Type: text/html');
     $enteredPassword = $_POST['admin_pass'] ?? '';
-    $isLoggedIn = false;
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $enteredPassword === $adminPassword) {
-        $isLoggedIn = true;
-    }
+    $isLoggedIn = ($_SERVER['REQUEST_METHOD'] === 'POST' && $enteredPassword === $adminPassword);
 
     if (!$isLoggedIn) {
         ?>
@@ -82,13 +77,12 @@ if ($uri === '/admin') {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Admin Login - InvestCore</title>
+            <title>Admin Login</title>
             <style>
                 body { font-family: sans-serif; background: #f4f6f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
                 .login-card { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 350px; text-align: center; }
                 input, button { width: 100%; padding: 12px; margin: 10px 0; box-sizing: border-box; font-size: 16px; border-radius: 4px; border: 1px solid #ccc; }
                 button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-                h3 { margin-bottom: 20px; color: #333; }
                 .error { color: red; font-size: 13px; margin-bottom: 10px; }
             </style>
         </head>
@@ -116,7 +110,7 @@ if ($uri === '/admin') {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>InvestCore Admin Dashboard</title>
+        <title>Admin Dashboard</title>
         <style>
             body { font-family: sans-serif; padding: 20px; background: #f4f6f9; color: #333; }
             .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -169,7 +163,7 @@ if ($uri === '/admin') {
     exit;
 }
 
-// 5. CLIENT WEBSITE INTERFACE (GET /)
+// 5. CLIENT PORTAL WEBSITE (GET /)
 header('Content-Type: text/html');
 ?>
 <!DOCTYPE html>

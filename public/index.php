@@ -8,7 +8,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$requestUri = $_SERVER['REQUEST_URI'];
 $historyFile = __DIR__ . '/transactions.json';
 $adminPassword = 'admin123_secure';
 
@@ -23,42 +22,34 @@ function saveTransaction($file, $data) {
     file_put_contents($file, json_encode($transactions, JSON_PRETTY_PRINT));
 }
 
-// 1. KUNG /deposit ang hiningi
-if (strpos($requestUri, 'deposit') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
+// Kunin ang aksyon mula sa POST data o URL parameter para walang sablay
+$action = $_GET['action'] ?? '';
+$input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+if (isset($input['action'])) {
+    $action = $input['action'];
+}
+
+// API HANDLER PARA SA DEPOSIT O WITHDRAW
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($action === 'deposit' || $action === 'withdraw')) {
     header('Content-Type: application/json');
-    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $type = ($action === 'deposit') ? 'DEPOSIT' : 'WITHDRAWAL';
+    
     $record = [
         'id' => uniqid('txn_'),
-        'type' => 'DEPOSIT',
+        'type' => $type,
         'user_id' => $input['user_id'] ?? 1,
         'amount' => floatval($input['amount'] ?? 0),
         'status' => 'SUCCESS',
         'timestamp' => date('Y-m-d H:i:s')
     ];
+    
     saveTransaction($historyFile, $record);
-    echo json_encode(['status' => 'success', 'message' => 'Deposit successful', 'data' => $record]);
+    echo json_encode(['status' => 'success', 'message' => ucfirst(strtolower($type)) . ' successful', 'data' => $record]);
     exit;
 }
 
-// 2. KUNG /withdraw ang hiningi
-if (strpos($requestUri, 'withdraw') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
-    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-    $record = [
-        'id' => uniqid('txn_'),
-        'type' => 'WITHDRAWAL',
-        'user_id' => $input['user_id'] ?? 1,
-        'amount' => floatval($input['amount'] ?? 0),
-        'status' => 'SUCCESS',
-        'timestamp' => date('Y-m-d H:i:s')
-    ];
-    saveTransaction($historyFile, $record);
-    echo json_encode(['status' => 'success', 'message' => 'Withdrawal successful', 'data' => $record]);
-    exit;
-}
-
-// 3. KUNG /admin ang hiningi
-if (strpos($requestUri, 'admin') !== false) {
+// ADMIN LOGIN / DASHBOARD
+if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false) {
     header('Content-Type: text/html');
     $enteredPassword = $_POST['admin_pass'] ?? '';
     $isLoggedIn = ($_SERVER['REQUEST_METHOD'] === 'POST' && $enteredPassword === $adminPassword);
@@ -120,7 +111,7 @@ if (strpos($requestUri, 'admin') !== false) {
         <div class="container">
             <h2>
                 InvestCore Admin Dashboard
-                <a href="/admin" class="logout-btn">Mag-logout</a>
+                <a href="?admin=1" class="logout-btn">Mag-logout</a>
             </h2>
             <p>Lahat ng Client Deposit at Withdrawal Transactions:</p>
             <table>
@@ -156,7 +147,7 @@ if (strpos($requestUri, 'admin') !== false) {
     exit;
 }
 
-// 4. DEFAULT: CLIENT PORTAL WEBSITE (GET /)
+// CLIENT PORTAL PAGE (GET /)
 header('Content-Type: text/html');
 ?>
 <!DOCTYPE html>
@@ -201,10 +192,11 @@ header('Content-Type: text/html');
             resultDiv.innerText = "Nagpoproseso...";
 
             try {
-                const response = await fetch('/' + type, {
+                // Ipinapasa na natin ang action parameter sa iisang file para walang routing error sa Render
+                const response = await fetch('', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, amount: parseFloat(amount) })
+                    body: JSON.stringify({ action: type, user_id: userId, amount: parseFloat(amount) })
                 });
                 const data = await response.json();
                 resultDiv.innerText = "Status: " + data.message + "\nUri: " + data.data.type + "\nHalaga: $" + data.data.amount;

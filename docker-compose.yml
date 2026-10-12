@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: investment_api
+    ports:
+      - "8080:80"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=investment_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres_secret_password
+      - DB_SSL_MODE=disable
+      - JWT_SECRET=super_secret_jwt_key_minimum_32_characters_long_12345
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: investment_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: investment_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_secret_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d investment_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local

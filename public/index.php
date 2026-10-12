@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $usersFile = __DIR__ . '/users.json';
 $historyFile = __DIR__ . '/transactions.json';
+$subsFile = __DIR__ . '/subscriptions.json';
 
 // Admin Credentials
 $adminUser = 'admin';
@@ -18,6 +19,13 @@ $adminPassword = 'admin123_secure';
 
 // PayMongo Live Secret Key
 $paymongoSecretKey = 'sk_live_W2bH6v6N13aWbCuh3Y41a5v8';
+
+// Investment Plans Definition (3 Types)
+$plans = [
+    'starter' => ['name' => 'Starter Plan', 'deposit' => 500, 'daily' => 62],
+    'growth' => ['name' => 'Growth Plan', 'deposit' => 2500, 'daily' => 320],
+    'pro' => ['name' => 'Pro Plan', 'deposit' => 10000, 'daily' => 1350]
+];
 
 function getData($file) {
     if (!file_exists($file)) return [];
@@ -51,7 +59,7 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
     $users = getData($usersFile);
     $transactions = getData($historyFile);
 
-    // ADMIN ACTION: PULL OUT INVESTMENT VIA SECURE PAYMONGO GATEWAY
+    // ADMIN ACTION: SECURE PAYMONGO PULLOUT
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action']) && $_POST['admin_action'] === 'admin_paymongo_pullout') {
         $targetEmail = $_POST['client_email'] ?? '';
         $pullAmount = floatval($_POST['pull_amount'] ?? 0);
@@ -59,7 +67,6 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
         foreach ($users as &$u) {
             if ($u['email'] === $targetEmail) {
                 if ($u['balance'] >= $pullAmount && $pullAmount > 0) {
-                    
                     $amountInCentavos = intval($pullAmount * 100);
                     $payload = [
                         'data' => [
@@ -127,40 +134,31 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
         <body>
             <div class="card">
                 <h3>Admin Portal Login</h3>
-                <?php if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!$isAdminLoggedIn)): ?>
-                    <div class="error">Mali ang ID o password!</div>
-                <?php endif; ?>
                 <form method="POST">
-                    <input type="text" name="admin_user" placeholder="Admin Username (admin)" required>
+                    <input type="text" name="admin_user" placeholder="Admin Username" required>
                     <input type="password" name="admin_pass" placeholder="Admin Password" required>
                     <button type="submit">Mag-login</button>
                 </form>
             </div>
         </body>
         </html>
-        <?php
+        <?>
         exit;
     }
 
     $totalClientBalance = 0;
-    foreach ($users as $u) {
-        $totalClientBalance += $u['balance'];
-    }
+    foreach ($users as $u) { $totalClientBalance += $u['balance']; }
     ?>
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Admin Dashboard - PayMongo Secure Gateway</title>
+        <title>Admin Dashboard</title>
         <style>
             body { font-family: sans-serif; padding: 20px; background: #f4f6f9; color: #333; }
             .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
             h2 { color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-            .stats-box { display: flex; gap: 15px; margin-bottom: 25px; }
-            .stat-card { background: #e9ecef; padding: 15px; border-radius: 6px; flex: 1; text-align: center; }
-            .stat-card h4 { margin: 0 0 5px 0; color: #555; font-size: 14px; }
-            .stat-card span { font-size: 20px; font-weight: bold; color: #007bff; }
             table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 30px; }
             th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
             th { background: #007bff; color: white; }
@@ -169,37 +167,16 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
             .action-form input { width: 90px; padding: 6px; font-size: 13px; }
             .action-form button { background: #28a745; color: white; border: none; padding: 7px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
             .msg { background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 15px; text-align: center; font-weight: bold; }
-            h3 { margin-top: 25px; color: #444; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h2>
-                InvestCore Admin Dashboard
-                <a href="?admin=1&admin_logout=1" class="logout-btn">Mag-logout</a>
-            </h2>
-
-            <?php if (!empty($adminActionMsg)): ?>
-                <div class="msg"><?php echo htmlspecialchars($adminActionMsg); ?></div>
-            <?php endif; ?>
-
-            <div class="stats-box">
-                <div class="stat-card">
-                    <h4>Total Client Active Balance</h4>
-                    <span>₱<?php echo number_format($totalClientBalance, 2); ?></span>
-                </div>
-            </div>
-
+            <h2>InvestCore Admin Dashboard <a href="?admin=1&admin_logout=1" class="logout-btn">Mag-logout</a></h2>
+            <?php if (!empty($adminActionMsg)): ?><div class="msg"><?php echo htmlspecialchars($adminActionMsg); ?></div><?php endif; ?>
+            <p><b>Total Client Active Balance:</b> ₱<?php echo number_format($totalClientBalance, 2); ?></p>
             <h3>Registered Clients</h3>
             <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Client Balance</th>
-                        <th>Secure PayMongo Gateway Pullout</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Balance</th><th>PayMongo Pullout</th></tr></thead>
                 <tbody>
                     <?php if (empty($users)): ?>
                         <tr><td colspan="4" style="text-align:center;">Wala pang nakarehistrong client.</td></tr>
@@ -215,42 +192,10 @@ if (isset($_GET['admin']) || strpos($_SERVER['REQUEST_URI'], 'admin') !== false)
                                             <input type="hidden" name="admin_action" value="admin_paymongo_pullout">
                                             <input type="hidden" name="client_email" value="<?php echo htmlspecialchars($u['email']); ?>">
                                             <input type="number" name="pull_amount" max="<?php echo $u['balance']; ?>" value="<?php echo $u['balance']; ?>" step="any" required>
-                                            <button type="submit">PayMongo Pullout</button>
+                                            <button type="submit">Pullout</button>
                                         </form>
-                                    <?php else: ?>
-                                        <span style="color: #888; font-size: 13px;">Walang pondo</span>
-                                    <?php endif; ?>
+                                    <?php else: ?><span>Walang pondo</span><?php endif; ?>
                                 </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-
-            <h3>System Transaction & Gateway History</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Type</th>
-                        <th>Client Email</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                        <th>Date & Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($transactions)): ?>
-                        <tr><td colspan="6" style="text-align:center;">Wala pang transaksiyon.</td></tr>
-                    <?php else: ?>
-                        <?php foreach ($transactions as $txn): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($txn['id']); ?></td>
-                                <td><b><?php echo htmlspecialchars($txn['type']); ?></b></td>
-                                <td><?php echo htmlspecialchars($txn['user']); ?></td>
-                                <td>₱<?php echo number_format($txn['amount'], 2); ?></td>
-                                <td><span style="color: green; font-weight: bold;"><?php echo htmlspecialchars($txn['status']); ?></span></td>
-                                <td><?php echo htmlspecialchars($txn['timestamp']); ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -308,19 +253,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $users = getData($usersFile);
         foreach ($users as $u) {
-            if ($u['email'] === $email) {
-                $error = 'May naka-register na account gamit ang email na ito.';
-                break;
-            }
+            if ($u['email'] === $email) { $error = 'May naka-register na account.'; break; }
         }
 
         if (empty($error)) {
-            $users[] = [
-                'name' => $name,
-                'email' => $email,
-                'password' => password_hash($password, PASSWORD_DEFAULT),
-                'balance' => 0.00
-            ];
+            $users[] = ['name' => $name, 'email' => $email, 'password' => password_hash($password, PASSWORD_DEFAULT), 'balance' => 0.00];
             saveData($usersFile, $users);
             $message = 'Account created successfully! Mag-login na.';
         }
@@ -328,7 +265,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($action === 'login') {
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
-
         $users = getData($usersFile);
         $found = false;
         foreach ($users as $u) {
@@ -339,17 +275,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
         }
-
-        if ($found) {
-            header('Location: /?dashboard=1');
-            exit;
-        } else {
-            $error = 'Mali ang email o password.';
-        }
+        if ($found) { header('Location: /?dashboard=1'); exit; } else { $error = 'Mali ang email o password.'; }
     }
     elseif ($action === 'deposit' && isset($_SESSION['client_email'])) {
         $amount = floatval($_POST['amount'] ?? 0);
-        if ($amount > 0) {
+        if ($amount > 0 && $amount <= 50000) { // Limit up to 50k
             $amountInCentavos = intval($amount * 100);
             $email = $_SESSION['client_email'];
             $successUrl = $currentUrl . "/?paymongo_success=1&amount=$amount&user_email=" . urlencode($email);
@@ -364,10 +294,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'name' => 'InvestCore Deposit (' . $email . ')',
                             'quantity' => 1
                         ]],
-                        'payment_method_types' => ['gcash', 'paymaya', 'card', 'dob'],
+                        'payment_method_types' => ['gcash', 'paymaya', 'card'],
                         'success_url' => $successUrl,
                         'cancel_url' => $cancelUrl,
-                        'description' => 'Client Account Deposit'
+                        'description' => 'Account Deposit'
                     ]
                 ]
             ];
@@ -384,21 +314,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             $response = curl_exec($ch);
-            $curlError = curl_error($ch);
             curl_close($ch);
-            
-            if ($curlError) {
-                $error = 'cURL Error: ' . $curlError;
+            $resData = json_decode($response, true);
+
+            if (isset($resData['data']['attributes']['checkout_url'])) {
+                header('Location: ' . $resData['data']['attributes']['checkout_url']);
+                exit;
             } else {
-                $resData = json_decode($response, true);
-                if (isset($resData['data']['attributes']['checkout_url'])) {
-                    header('Location: ' . $resData['data']['attributes']['checkout_url']);
-                    exit;
-                } else {
-                    $apiErrorMsg = $resData['errors'][0]['detail'] ?? 'PayMongo Error: Unknown response format';
-                    $error = $apiErrorMsg;
+                $error = 'PayMongo Connection Error. Pakisuri ang API keys.';
+            }
+        } else {
+            $error = 'Ang deposit ay dapat mula ₱1 hanggang ₱50,000 lamang.';
+        }
+    }
+    elseif ($action === 'subscribe_plan' && isset($_SESSION['client_email'])) {
+        $planKey = $_POST['plan'] ?? '';
+        $email = $_SESSION['client_email'];
+        
+        if (isset($plans[$planKey])) {
+            $selectedPlan = $plans[$planKey];
+            $users = getData($usersFile);
+            $subs = getData($subsFile);
+            
+            foreach ($users as &$u) {
+                if ($u['email'] === $email) {
+                    if ($u['balance'] >= $selectedPlan['deposit']) {
+                        $u['balance'] -= $selectedPlan['deposit'];
+                        
+                        // I-save ang subscription kasama ang eksaktong oras para sa 24-hour daily claim limit
+                        $subs[] = [
+                            'email' => $email,
+                            'plan' => $selectedPlan['name'],
+                            'daily_earning' => $selectedPlan['daily'],
+                            'start_time' => time(),
+                            'next_claim_time' => time() + 86400, // 24 hours
+                            'status' => 'ACTIVE'
+                        ];
+                        
+                        saveData($subsFile, $subs);
+                        saveData($usersFile, $users);
+                        $message = "Tagumpay kang nag-subscribe sa " . $selectedPlan['name'] . "!";
+                    } else {
+                        $error = "Kulang ang iyong balanse para sa plan na ito.";
+                    }
+                    break;
                 }
             }
+        }
+    }
+    elseif ($action === 'claim_daily' && isset($_SESSION['client_email'])) {
+        $email = $_SESSION['client_email'];
+        $subs = getData($subsFile);
+        $users = getData($usersFile);
+        $updated = false;
+
+        foreach ($subs as &$sub) {
+            if ($sub['email'] === $email && $sub['status'] === 'ACTIVE') {
+                if (time() >= $sub['next_claim_time']) {
+                    // Dagdagan ang balanse ng client ng daily earning
+                    foreach ($users as &$u) {
+                        if ($u['email'] === $email) {
+                            $u['balance'] += $sub['daily_earning'];
+                            break;
+                        }
+                    }
+                    // Reset para sa susunod na 24 oras (eksaktong oras ng susunod na claim)
+                    $sub['next_claim_time'] = time() + 86400;
+                    $updated = true;
+                    $message = "Tagumpay na na-claim ang iyong daily return na ₱" . number_format($sub['daily_earning'], 2) . "!";
+                } else {
+                    $error = "Masyado pang maaga. Maaari mo itong i-claim eksaktong 24 oras mula nang huling claim/oras ng pag-subscribe.";
+                }
+                break;
+            }
+        }
+
+        if ($updated) {
+            saveData($subsFile, $subs);
+            saveData($usersFile, $users);
+        } elseif (empty($message) && empty($error)) {
+            $error = "Wala kang aktibong investment plan.";
         }
     }
 }
@@ -413,22 +408,20 @@ if (isset($_GET['logout'])) {
 if (isset($_SESSION['client_email'])) {
     $email = $_SESSION['client_email'];
     $users = getData($usersFile);
+    $subs = getData($subsFile);
     $currentBalance = 0;
     $clientName = $_SESSION['client_name'];
 
     foreach ($users as $u) {
-        if ($u['email'] === $email) {
-            $currentBalance = $u['balance'];
-            break;
-        }
+        if ($u['email'] === $email) { $currentBalance = $u['balance']; break; }
     }
 
-    if (isset($_GET['msg']) && $_GET['msg'] === 'Deposit_Success') {
-        $message = 'Tagumpay ang iyong pag-deposito!';
+    $clientSub = null;
+    foreach ($subs as $s) {
+        if ($s['email'] === $email && $s['status'] === 'ACTIVE') { $clientSub = $s; break; }
     }
-    if (isset($_GET['cancel'])) {
-        $error = 'Kinansela ang pagbabayad.';
-    }
+
+    if (isset($_GET['msg']) && $_GET['msg'] === 'Deposit_Success') { $message = 'Tagumpay ang iyong pag-deposito!'; }
     ?>
     <!DOCTYPE html>
     <html lang="en">
@@ -437,16 +430,19 @@ if (isset($_SESSION['client_email'])) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Client Dashboard - InvestCore</title>
         <style>
-            body { font-family: sans-serif; padding: 20px; background: #f4f6f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-            .card { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+            body { font-family: sans-serif; padding: 20px; background: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+            .card { background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 450px; }
             h2 { color: #333; margin-top: 0; text-align: center; }
-            .balance-box { background: #e9ecef; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 20px; font-size: 18px; font-weight: bold; color: #007bff; }
-            label { font-size: 14px; font-weight: bold; color: #555; }
-            input, button { width: 100%; padding: 12px; margin: 8px 0 15px 0; box-sizing: border-box; font-size: 15px; border-radius: 4px; border: 1px solid #ccc; }
+            .balance-box { background: #e9ecef; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 15px; font-size: 18px; font-weight: bold; color: #007bff; }
+            label { font-size: 13px; font-weight: bold; color: #555; display: block; margin-top: 10px; }
+            input, select, button { width: 100%; padding: 10px; margin: 5px 0 12px 0; box-sizing: border-box; font-size: 14px; border-radius: 4px; border: 1px solid #ccc; }
             .btn-deposit { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
+            .btn-sub { background: #ffc107; color: #333; border: none; font-weight: bold; cursor: pointer; }
+            .btn-claim { background: #17a2b8; color: white; border: none; font-weight: bold; cursor: pointer; }
             .logout-link { display: block; text-align: center; margin-top: 15px; color: #dc3545; text-decoration: none; font-size: 14px; }
             .msg { background: #d4edda; color: #155724; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 15px; text-align: center; }
             .err { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 15px; text-align: center; }
+            .plan-box { background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #007bff; font-size: 13px; }
         </style>
     </head>
     <body>
@@ -457,11 +453,36 @@ if (isset($_SESSION['client_email'])) {
             <?php if (!empty($message)): ?><div class="msg"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
             <?php if (!empty($error)): ?><div class="err"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
+            <!-- Deposit Form -->
             <form method="POST">
-                <label>Halaga ng Ide-deposit (₱):</label>
-                <input type="number" name="amount" value="500" step="any" required>
+                <label>Mag-deposit via PayMongo (Hanggang ₱50,000):</label>
+                <input type="number" name="amount" value="500" max="50000" step="any" required>
                 <button type="submit" name="action" value="deposit" class="btn-deposit">Mag-Deposit (PayMongo)</button>
             </form>
+
+            <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
+
+            <!-- Investment Plans Selection -->
+            <?php if (!$clientSub): ?>
+                <form method="POST">
+                    <label>Pumili ng Investment Plan:</label>
+                    <select name="plan" required>
+                        <option value="starter">Starter Plan (Dep: ₱500 | Return: ₱62/day)</option>
+                        <option value="growth">Growth Plan (Dep: ₱2,500 | Return: ₱320/day)</option>
+                        <option value="pro">Pro Plan (Dep: ₱10,000 | Return: ₱1,350/day)</option>
+                    </select>
+                    <button type="submit" name="action" value="subscribe_plan" class="btn-sub">Mag-subscribe sa Plan</button>
+                </form>
+            <?php else: ?>
+                <div class="plan-box">
+                    <b>Aktibong Plan:</b> <?php echo htmlspecialchars($clientSub['plan']); ?><br>
+                    <b>Daily Return:</b> ₱<?php echo number_format($clientSub['daily_earning'], 2); ?><br>
+                    <b>Susunod na Claim:</b> <?php echo date('M d, Y h:i A', $clientSub['next_claim_time']); ?>
+                </div>
+                <form method="POST">
+                    <button type="submit" name="action" value="claim_daily" class="btn-claim">I-claim ang Daily Earnings</button>
+                </form>
+            <?php endif; ?>
 
             <a href="/?logout=1" class="logout-link">Mag-log out</a>
         </div>
@@ -500,12 +521,9 @@ $view = $_GET['view'] ?? 'login';
             <?php if (!empty($error)): ?><div class="err"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
             <form method="POST">
                 <input type="hidden" name="action" value="register">
-                <label>Pangalan:</label>
-                <input type="text" name="name" required>
-                <label>Email:</label>
-                <input type="email" name="email" required>
-                <label>Password:</label>
-                <input type="password" name="password" required>
+                <label>Pangalan:</label><input type="text" name="name" required>
+                <label>Email:</label><input type="email" name="email" required>
+                <label>Password:</label><input type="password" name="password" required>
                 <button type="submit">Mag-sign up</button>
             </form>
             <div class="toggle-link">Mayroon nang account? <a href="/">Mag-login dito</a></div>
@@ -515,10 +533,8 @@ $view = $_GET['view'] ?? 'login';
             <?php if (!empty($error)): ?><div class="err"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
             <form method="POST">
                 <input type="hidden" name="action" value="login">
-                <label>Email:</label>
-                <input type="email" name="email" required>
-                <label>Password:</label>
-                <input type="password" name="password" required>
+                <label>Email:</label><input type="email" name="email" required>
+                <label>Password:</label><input type="password" name="password" required>
                 <button type="submit">Mag-login</button>
             </form>
             <div class="toggle-link">Wala pang account? <a href="/?view=register">Mag-register dito</a></div>

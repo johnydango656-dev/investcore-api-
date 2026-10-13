@@ -1,8 +1,7 @@
 <?php
 session_start();
 
-// Configuration: Ilagay ang iyong Binance USDT Wallet Address at Secret Admin Password
-$adminUsdtWallet = 'TUxYourUsdtWalletAddressHere123456789'; 
+// Configuration: Simple admin password
 $adminSecretPassword = 'admin123'; 
 $dataFile = __DIR__ . '/../data/system_data.json';
 
@@ -15,6 +14,7 @@ function loadData($filePath) {
     
     if (!file_exists($filePath)) {
         $initialData = [
+            'settings' => ['admin_wallet' => 'TUxYourUsdtWalletAddressHere123456789'],
             'users' => [],
             'transactions' => []
         ];
@@ -22,7 +22,11 @@ function loadData($filePath) {
         return $initialData;
     }
     $content = file_get_contents($filePath);
-    return json_decode($content, true) ?? ['users' => [], 'transactions' => []];
+    $data = json_decode($content, true) ?? [];
+    if (!isset($data['settings'])) {
+        $data['settings'] = ['admin_wallet' => 'TUxYourUsdtWalletAddressHere123456789'];
+    }
+    return $data;
 }
 
 function saveData($filePath, $data) {
@@ -34,6 +38,7 @@ function saveData($filePath, $data) {
 }
 
 $db = loadData($dataFile);
+$adminUsdtWallet = $db['settings']['admin_wallet'] ?? 'TUxYourUsdtWalletAddressHere123456789';
 
 // Capture referral parameter from link
 if (isset($_GET['ref'])) {
@@ -108,6 +113,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
     exit();
 }
 
+// ADMIN UPDATE BINANCE WALLET ADDRESS
+if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_admin_wallet') {
+    $newWallet = trim($_POST['new_admin_wallet'] ?? '');
+    if (!empty($newWallet)) {
+        $db['settings']['admin_wallet'] = htmlspecialchars($newWallet);
+        saveData($dataFile, $db);
+        $adminUsdtWallet = $newWallet;
+        $adminSuccess = "Matagumpay na na-update ang iyong Binance USDT Wallet Address!";
+    } else {
+        $adminErrorMsg = "Mangyaring ilagay ang valid na wallet address.";
+    }
+}
+
 // ADMIN APPROVE DEPOSIT
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve_deposit'])) {
     $txnId = $_GET['approve_deposit'];
@@ -140,7 +158,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     exit();
 }
 
-// ADMIN DIRECT MANAGE FUNDS (DEPOSIT / PULLOUT TO BINANCE WALLET)
+// ADMIN DIRECT MANAGE FUNDS (DEPOSIT / PULLOUT)
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_adjust_fund') {
     $targetUser = trim($_POST['target_user'] ?? '');
     $adjustAmount = floatval($_POST['adjust_amount'] ?? 0);
@@ -172,7 +190,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['
                 'status' => 'completed',
                 'created_at' => date('Y-m-d H:i:s')
             ];
-            $adminSuccess = "Na-pullout ang $adjustAmount USDT kay $targetUser papuntang Admin Binance Wallet ($adminUsdtWallet).";
+            $adminSuccess = "Na-pullout ang $adjustAmount USDT kay $targetUser papuntang Admin Binance Wallet.";
         }
         saveData($dataFile, $db);
     } else {
@@ -295,9 +313,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
         th, td { border: 1px solid #475569; padding: 6px; text-align: left; }
         th { background: #0f172a; }
-        .footer-links { text-align: center; margin-top: 20px; font-size: 13px; }
-        .footer-links a { color: #94a3b8; text-decoration: none; }
-        .footer-links a:hover { color: #38bdf8; }
         .tab-btn { width: 48%; display: inline-block; padding: 10px; text-align: center; background: #0f172a; color: white; border-radius: 6px; cursor: pointer; }
         .tab-btn.active { background: #38bdf8; color: #0f172a; font-weight: bold; }
         hr { border: 0; border-top: 1px solid #475569; margin: 20px 0; }
@@ -331,10 +346,20 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 <div class="alert alert-error"><?= htmlspecialchars($adminErrorMsg) ?></div>
             <?php endif; ?>
 
+            <!-- SET ADMIN BINANCE WALLET ADDRESS -->
+            <div class="card">
+                <h3>Set Admin Binance USDT Address</h3>
+                <form method="POST">
+                    <input type="hidden" name="action" value="update_admin_wallet">
+                    <label>Binance USDT Wallet Address (TRC20/BEP20):</label>
+                    <input type="text" name="new_admin_wallet" value="<?= htmlspecialchars($adminUsdtWallet) ?>" placeholder="Ilagay ang iyong Binance USDT Address" required>
+                    <button type="submit" class="btn">I-save ang Wallet Address</button>
+                </form>
+            </div>
+
             <!-- ADMIN DIRECT DEPOSIT / PULLOUT CONTROL -->
             <div class="card">
                 <h3>Admin Fund Control (Deposit / Pullout)</h3>
-                <p style="font-size: 12px; color: #94a3b8;">Destination Binance Wallet: <b><?= htmlspecialchars($adminUsdtWallet) ?></b></p>
                 <form method="POST">
                     <input type="hidden" name="action" value="admin_adjust_fund">
                     <label>Pumili ng Client User:</label>
@@ -426,9 +451,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 <a href="?action=admin_logout" class="btn btn-danger" style="margin-top: 15px; text-align: center; text-decoration: none;">Mag-log out sa Admin</a>
             </div>
         <?php endif; ?>
-        <div class="footer-links">
-            <a href="/">Balik sa Dashboard</a>
-        </div>
 
     <?php elseif (!$currentUser): ?>
         <!-- LOGIN / REGISTER FORM -->
@@ -486,10 +508,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 }
             }
         </script>
-
-        <div class="footer-links">
-            <a href="?route=admin">Admin Login</a>
-        </div>
 
     <?php else: ?>
         <!-- LOGGED-IN DASHBOARD -->
@@ -574,10 +592,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         </div>
 
         <a href="?action=logout" class="btn btn-danger" style="margin-top: 20px; text-decoration: none;">Mag-log out</a>
-
-        <div class="footer-links">
-            <a href="?route=admin">Admin Login</a>
-        </div>
     <?php endif; ?>
 </div>
 

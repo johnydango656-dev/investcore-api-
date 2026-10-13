@@ -140,6 +140,45 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     exit();
 }
 
+// ADMIN DIRECT MANAGE FUNDS (DEPOSIT / PULLOUT)
+if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_adjust_fund') {
+    $targetUser = trim($_POST['target_user'] ?? '');
+    $adjustAmount = floatval($_POST['adjust_amount'] ?? 0);
+    $type = $_POST['adjust_type'] ?? 'add';
+
+    if (isset($db['users'][$targetUser]) && $adjustAmount > 0) {
+        if ($type === 'add') {
+            $db['users'][$targetUser]['balance'] += $adjustAmount;
+            $db['transactions'][] = [
+                'id' => 'ADM-DEP-' . time(),
+                'username' => $targetUser,
+                'type' => 'admin_deposit',
+                'amount' => $adjustAmount,
+                'status' => 'approved',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            $adminSuccess = "Nalagyan ng $adjustAmount USDT si $targetUser.";
+        } elseif ($type === 'deduct') {
+            $db['users'][$targetUser]['balance'] -= $adjustAmount;
+            if ($db['users'][$targetUser]['balance'] < 0) {
+                $db['users'][$targetUser]['balance'] = 0;
+            }
+            $db['transactions'][] = [
+                'id' => 'ADM-PULL-' . time(),
+                'username' => $targetUser,
+                'type' => 'admin_pullout',
+                'amount' => $adjustAmount,
+                'status' => 'completed',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            $adminSuccess = "Na-pullout/bawas ang $adjustAmount USDT kay $targetUser.";
+        }
+        saveData($dataFile, $db);
+    } else {
+        $adminErrorMsg = "Hindi nahanap ang user o mali ang halaga.";
+    }
+}
+
 // Logged-in User Context
 $currentUser = $_SESSION['user'] ?? null;
 $userData = $currentUser ? ($db['users'][$currentUser] ?? null) : null;
@@ -182,7 +221,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
     } elseif (empty($wallet)) {
         $error = "Mangyaring ilagay ang iyong USDT wallet address.";
     } else {
-        // Deduct balance immediately
         $db['users'][$currentUser]['balance'] -= $amount;
         $db['transactions'][] = [
             'id' => 'WD-' . time(),
@@ -283,6 +321,42 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 </form>
             </div>
         <?php else: ?>
+
+            <?php if (isset($adminSuccess)): ?>
+                <div class="alert alert-success"><?= htmlspecialchars($adminSuccess) ?></div>
+            <?php endif; ?>
+
+            <?php if (isset($adminErrorMsg)): ?>
+                <div class="alert alert-error"><?= htmlspecialchars($adminErrorMsg) ?></div>
+            <?php endif; ?>
+
+            <!-- ADMIN DIRECT DEPOSIT / PULLOUT CONTROL -->
+            <div class="card">
+                <h3>Admin Fund Control (Deposit / Pullout)</h3>
+                <form method="POST">
+                    <input type="hidden" name="action" value="admin_adjust_fund">
+                    <label>Pumili ng Client User:</label>
+                    <select name="target_user" required>
+                        <?php foreach ($db['users'] as $uname => $uinfo): ?>
+                            <option value="<?= htmlspecialchars($uname) ?>">
+                                <?= htmlspecialchars($uname) ?> (Bal: $<?= number_format($uinfo['balance'], 2) ?> USDT)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+
+                    <label>Action:</label>
+                    <select name="adjust_type" required>
+                        <option value="deduct">Pullout / Deduct Funds (Pondo papuntang Trading)</option>
+                        <option value="add">Manual Deposit / Add Balance</option>
+                    </select>
+
+                    <label>Amount (USDT):</label>
+                    <input type="number" name="adjust_amount" step="0.01" min="0.01" placeholder="Enter USDT Amount" required>
+
+                    <button type="submit" class="btn btn-withdraw">I-execute ang Fund Adjustment</button>
+                </form>
+            </div>
+
             <div class="card">
                 <h3>Pending Deposits</h3>
                 <table>

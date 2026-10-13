@@ -1,9 +1,9 @@
 <?php
 session_start();
 
-// Configuration: Palitan ang iyong USDT Wallet at Secret Admin Password dito
+// Configuration: Simple admin password muna para madaling buksan
 $adminUsdtWallet = 'TUxYourUsdtWalletAddressHere123456789'; 
-$adminSecretPassword = 'my_super_secret_admin_password_123'; 
+$adminSecretPassword = 'admin123'; 
 $dataFile = __DIR__ . '/../data/system_data.json';
 
 // Utility functions for JSON storage
@@ -93,7 +93,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
 
 // ADMIN LOGIN / LOGOUT
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_login') {
-    if ($_POST['password'] === $adminSecretPassword) {
+    if (trim($_POST['password']) === $adminSecretPassword) {
         $_SESSION['is_admin'] = true;
         header("Location: ?route=admin");
         exit();
@@ -179,7 +179,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 'created_at' => date('Y-m-d H:i:s')
             ];
             saveData($dataFile, $db);
-            // Refresh user data
             $userData = $db['users'][$currentUser];
             $success = "Matagumpay kang nag-subscribe sa $selectedPlanKey (15 Days + Re-invest)!";
         }

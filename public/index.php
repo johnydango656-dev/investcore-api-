@@ -427,190 +427,99 @@ if ($currentUser && isset($db['transactions'])) {
         <?php endif; ?>
 
     <?php elseif (isset($_GET['route']) && $_GET['route'] === 'gateway'): ?>
-        <!-- CLOUD PAYMENT GATEWAY WITH REALISTIC LOGIN STEP -->
-        <?php 
+        <!-- CLOUD GCEEPAY GATEWAY (CLEAN & EXACT CLONE) -->
+        <?>
             $gatewayAmt = $_GET['amount'] ?? 300;
-            $totalPayAmt = $gatewayAmt + 4.99; 
             $gatewayMethod = $_GET['method'] ?? 'GCash';
-            $txnId = $_GET['txn'] ?? 'PAY-TEST';
-            $step = $_GET['step'] ?? '1';
+            $txnId = $_GET['txn'] ?? 'PAY-' . time();
         ?>
         <div style="background: #f1f5f9; min-height: 100vh; margin: -15px; padding-bottom: 50px; color: #1e293b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
             
-            <?php if ($step === '1'): ?>
-                <!-- STEP 1: QR & OPEN BUTTON PAGE -->
-                <div style="background: #1b6ef3; padding: 20px 15px; color: #fff; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                    <div style="font-size: 20px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                        <span style="background: #fff; color: #1b6ef3; padding: 2px 8px; border-radius: 4px; font-size: 14px;">G</span> <?= htmlspecialchars($gatewayMethod) ?>
-                    </div>
-                    <div style="font-size: 11px; opacity: 0.8; margin-top: 4px;">cloud.gceepay.com</div>
+            <div style="background: #1b6ef3; padding: 18px 15px; color: #fff; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    <span style="background: #fff; color: #1b6ef3; padding: 2px 8px; border-radius: 4px; font-size: 13px;">G</span> <?= htmlspecialchars($gatewayMethod) ?>
+                </div>
+                <div style="font-size: 10px; opacity: 0.8; margin-top: 2px;">cloud.gceepay.com</div>
+            </div>
+
+            <div style="max-width: 440px; margin: 20px auto; background: #ffffff; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                <p style="text-align: center; color: #64748b; font-size: 13px; margin-bottom: 20px; font-weight: 500;">
+                    Securely complete the payment with your <?= htmlspecialchars($gatewayMethod) ?> App
+                </p>
+
+                <!-- OPEN IN APP / INTENT REDIRECT BUTTON -->
+                <button type="button" onclick="launchApp('<?= htmlspecialchars($gatewayMethod) ?>')" style="display: block; width: 100%; background: #1b6ef3; color: #fff; text-align: center; padding: 16px; border-radius: 30px; font-weight: bold; font-size: 15px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(27,110,243,0.3); margin-bottom: 25px;">
+                    Open in <?= htmlspecialchars($gatewayMethod) ?>
+                </button>
+
+                <div style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 25px; position: relative;">
+                    <span style="background: #fff; padding: 0 10px; position: relative; z-index: 1;">or Login to <?= htmlspecialchars($gatewayMethod) ?> and scan this QR with the QR Scanner</span>
+                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: -8px;">
                 </div>
 
-                <div style="max-width: 440px; margin: 20px auto; background: #ffffff; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                    <p style="text-align: center; color: #64748b; font-size: 13px; margin-bottom: 20px; font-weight: 500;">
-                        Securely complete the payment with your <?= htmlspecialchars($gatewayMethod) ?> App
-                    </p>
-
-                    <!-- OPENS GCASH LOGIN STEP -->
-                    <a href="?route=gateway&txn=<?= $txnId ?>&amount=<?= $gatewayAmt ?>&method=<?= $gatewayMethod ?>&step=login" style="display: block; background: #1b6ef3; color: #fff; text-align: center; padding: 16px; border-radius: 30px; font-weight: bold; font-size: 15px; text-decoration: none; box-shadow: 0 4px 12px rgba(27,110,243,0.3); margin-bottom: 25px;">
-                        Open in <?= htmlspecialchars($gatewayMethod) ?>
-                    </a>
-
-                    <div style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 25px; position: relative;">
-                        <span style="background: #fff; padding: 0 10px; position: relative; z-index: 1;">or Login to <?= htmlspecialchars($gatewayMethod) ?> and scan this QR</span>
-                        <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: -8px;">
+                <!-- QR CODE BOX -->
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<?= urlencode('https://cloud.gceepay.com/pay?amount='.$gatewayAmt.'&txn='.$txnId) ?>" alt="Payment QR" style="display: block; border-radius: 6px;">
                     </div>
-
-                    <div style="text-align: center; margin-bottom: 25px;">
-                        <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<?= urlencode('https://cloud.gceepay.com/pay?amount='.$gatewayAmt) ?>" alt="Payment QR" style="display: block; border-radius: 6px;">
-                        </div>
-                    </div>
-
-                    <div style="background: #f8fafc; border-radius: 10px; padding: 15px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
-                        <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 8px;">
-                            <span>Amount Due</span>
-                            <span style="font-weight: 600; color: #1e293b;">₱<?= number_format($gatewayAmt, 2) ?></span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 12px;">
-                            <span>Gateway Fee</span>
-                            <span style="font-weight: 600; color: #1e293b;">₱4.99</span>
-                        </div>
-                        <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 12px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #0f172a;">
-                            <span>Total Amount</span>
-                            <span style="color: #059669;">₱<?= number_format($totalPayAmt, 2) ?></span>
-                        </div>
-                    </div>
-
-                    <a href="/" style="display: block; text-align: center; background: #e2e8f0; color: #334155; padding: 12px; border-radius: 8px; font-size: 13px; font-weight: bold; text-decoration: none;">
-                        Tapos Na / Balik sa Dashboard
-                    </a>
                 </div>
 
-            <?php elseif ($step === 'login'): ?>
-                <!-- STEP 2: GCASH MPIN LOGIN SCREEN -->
-                <div style="background: #1b6ef3; padding: 30px 15px; color: #fff; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 900; letter-spacing: -1px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                        <span style="background: #fff; color: #1b6ef3; padding: 2px 10px; border-radius: 6px; font-size: 20px;">G</span> GCash
+                <!-- PAYMENT SUMMARY -->
+                <div style="background: #f8fafc; border-radius: 10px; padding: 15px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 8px;">
+                        <span>Transaction ID</span>
+                        <span style="font-weight: 600; color: #1e293b;"><?= htmlspecialchars($txnId) ?></span>
                     </div>
-                    <div style="font-size: 12px; opacity: 0.9; margin-top: 6px;">Merchant Checkout Login</div>
-                </div>
-
-                <div style="max-width: 440px; margin: 20px auto; background: #ffffff; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <div style="font-size: 14px; font-weight: 700; color: #0f172a;">Login to pay with GCash</div>
-                        <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Enter your registered mobile number</div>
-                    </div>
-
-                    <form action="?route=gateway" method="GET">
-                        <input type="hidden" name="route" value="gateway">
-                        <input type="hidden" name="txn" value="<?= htmlspecialchars($txnId) ?>">
-                        <input type="hidden" name="amount" value="<?= $gatewayAmt ?>">
-                        <input type="hidden" name="method" value="<?= htmlspecialchars($gatewayMethod) ?>">
-                        <input type="hidden" name="step" value="payment">
-
-                        <div style="margin-bottom: 15px;">
-                            <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Mobile Number</label>
-                            <div style="display: flex; align-items: center; border: 1px solid #cbd5e1; border-radius: 8px; margin-top: 6px; overflow: hidden; background: #fff;">
-                                <span style="padding: 12px 14px; background: #f8fafc; font-weight: bold; color: #475569; font-size: 14px; border-right: 1px solid #cbd5e1;">+63</span>
-                                <input type="tel" maxlength="10" placeholder="9XXXXXXXXX" style="border: none; background: transparent; padding: 12px; font-size: 15px; width: 100%; outline: none; color: #0f172a;" required>
-                            </div>
-                        </div>
-
-                        <div style="margin-bottom: 25px;">
-                            <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">4-Digit MPIN</label>
-                            <input type="password" maxlength="4" placeholder="••••" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; margin-top: 6px; padding: 12px; font-size: 18px; letter-spacing: 6px; text-align: center; outline: none; background: #fff; color: #0f172a; box-sizing: border-box;" required>
-                        </div>
-
-                        <button type="submit" style="width: 100%; background: #1b6ef3; color: #ffffff; border: none; padding: 16px; border-radius: 30px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 12px rgba(27,110,243,0.3);">
-                            Next / Proceed to Pay
-                        </button>
-                    </form>
-
-                    <a href="?route=gateway&txn=<?= $txnId ?>&amount=<?= $gatewayAmt ?>&method=<?= $gatewayMethod ?>&step=1" style="display: block; text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; text-decoration: none;">
-                        ← Cancel
-                    </a>
-                </div>
-
-            <?php else: ?>
-                <!-- STEP 3: GCASH MERCHANT PAYMENT CONFIRMATION SCREEN (FROM SCREENSHOT) -->
-                <div style="background: #1b6ef3; padding: 25px 15px; color: #fff; text-align: center;">
-                    <div style="font-size: 13px; opacity: 0.9; margin-bottom: 4px;">Merchant Checkout</div>
-                    <div style="font-size: 26px; font-weight: bold; letter-spacing: 1px;"><?= htmlspecialchars($txnId) ?></div>
-                </div>
-
-                <div style="max-width: 440px; margin: 20px auto; background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                    <div style="font-size: 11px; font-weight: 800; color: #1b6ef3; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">PAY WITH</div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #f1f5f9;">
-                        <div>
-                            <div style="font-weight: bold; font-size: 15px; color: #0f172a;"><?= htmlspecialchars($gatewayMethod) ?></div>
-                            <div style="font-size: 11px; color: #16a34a; font-weight: 600;">Pay now</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 14px; font-weight: bold; color: #0f172a;">PHP 1,500.00</div>
-                            <div style="font-size: 11px; color: #64748b;">Available Balance</div>
-                        </div>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #f1f5f9; color: #64748b;">
-                        <div style="font-size: 14px; font-weight: 500;">Card</div>
-                        <div style="font-size: 13px; font-weight: bold; color: #1b6ef3; cursor: pointer;">+ Add</div>
-                    </div>
-
-                    <div style="font-size: 11px; font-weight: 800; color: #1b6ef3; margin: 20px 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">YOU ARE ABOUT TO PAY</div>
-
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #475569; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 12px;">
                         <span>Amount Due</span>
-                        <span style="font-weight: 600; color: #0f172a;">PHP <?= number_format($gatewayAmt, 2) ?></span>
+                        <span style="font-weight: 600; color: #1e293b;">₱<?= number_format($gatewayAmt, 2) ?></span>
                     </div>
-
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #475569; margin-bottom: 12px;">
-                        <span>Discount</span>
-                        <span style="color: #94a3b8;">No available voucher ›</span>
-                    </div>
-
-                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 15px 0;">
-
-                    <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 20px;">
+                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #0f172a;">
                         <span>Total Amount</span>
-                        <span>PHP <?= number_format($totalPayAmt, 2) ?></span>
+                        <span style="color: #059669;">₱<?= number_format($gatewayAmt, 2) ?></span>
                     </div>
-
-                    <p style="text-align: center; font-size: 11px; color: #94a3b8; margin-bottom: 15px;">
-                        Please review to ensure that the details are correct before you proceed.
-                    </p>
-
-                    <!-- FINAL PAYMENT BUTTON -->
-                    <a href="/" onclick="alert('Payment Successful! Transaction is pending Admin Approval.');" style="display: block; background: #1b6ef3; color: #ffffff; text-align: center; padding: 16px; border-radius: 30px; font-weight: bold; font-size: 15px; text-decoration: none; box-shadow: 0 4px 12px rgba(27,110,243,0.3);">
-                        PAY PHP <?= number_format($totalPayAmt, 2) ?>
-                    </a>
-
-                    <a href="?route=gateway&txn=<?= $txnId ?>&amount=<?= $gatewayAmt ?>&method=<?= $gatewayMethod ?>&step=1" style="display: block; text-align: center; color: #64748b; font-size: 12px; margin-top: 15px; text-decoration: none;">
-                        ← Back to QR & Options
-                    </a>
                 </div>
-            <?php endif; ?>
 
-            <!-- COUNTDOWN TIMER FLOATING BADGE -->
-            <div id="paymentTimeoutBadge" style="position: fixed; bottom: 20px; right: 20px; background: #1b6ef3; color: #ffffff; padding: 12px 20px; border-radius: 30px; font-weight: bold; font-size: 13px; box-shadow: 0 4px 15px rgba(27,110,243,0.4); z-index: 9999;">
-                Payment Timeout : <span id="timerCountdown">14:24</span>
+                <a href="/" style="display: block; text-align: center; background: #e2e8f0; color: #334155; padding: 12px; border-radius: 8px; font-size: 13px; font-weight: bold; text-decoration: none;">
+                    Tapos Na / Balik sa Dashboard
+                </a>
+            </div>
+
+            <!-- TIMEOUT BADGE -->
+            <div style="position: fixed; bottom: 20px; right: 20px; background: #1b6ef3; color: #ffffff; padding: 10px 18px; border-radius: 20px; font-weight: bold; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999;">
+                Payment Timeout : <span id="timerCountdown">15:00</span>
             </div>
         </div>
 
         <script>
-            var timeLeft = 14 * 60 + 24; 
+            function launchApp(method) {
+                var isAndroid = /Android/i.test(navigator.userAgent);
+                if (method === 'GCash') {
+                    if (isAndroid) {
+                        window.location.href = "intent://#Intent;scheme=gcash;package=com.globe.gcash.android;end";
+                    } else {
+                        window.location.href = "gcash://app";
+                    }
+                } else {
+                    if (isAndroid) {
+                        window.location.href = "intent://#Intent;scheme=paymaya;package=com.paymaya;end";
+                    } else {
+                        window.location.href = "paymaya://";
+                    }
+                }
+            }
+
+            var timeLeft = 15 * 60; 
             var timerElement = document.getElementById('timerCountdown');
-            var countdownInterval = setInterval(function() {
-                var minutes = Math.floor(timeLeft / 60);
-                var seconds = timeLeft % 60;
-                if (seconds < 10) { seconds = '0' + seconds; }
-                if (minutes < 10) { minutes = '0' + minutes; }
-                timerElement.textContent = minutes + ':' + seconds;
+            var interval = setInterval(function() {
+                var m = Math.floor(timeLeft / 60);
+                var s = timeLeft % 60;
+                if (s < 10) s = '0' + s;
+                if (m < 10) m = '0' + m;
+                timerElement.textContent = m + ':' + s;
                 if (timeLeft <= 0) {
-                    clearInterval(countdownInterval);
-                    alert('Nalampasan na ang time limit. Mangyaring subukang muli.');
+                    clearInterval(interval);
                     window.location.href = '/';
                 }
                 timeLeft--;

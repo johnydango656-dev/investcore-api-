@@ -1,23 +1,15 @@
 <?php
 session_start();
 
-// Configuration: Simple admin password
 $adminSecretPassword = 'admin123'; 
 $dataFile = __DIR__ . '/../data/system_data.json';
 
-// Utility functions for JSON storage
 function loadData($filePath) {
     $dir = dirname($filePath);
-    if (!is_dir($dir)) {
-        mkdir($dir, 0777, true);
-    }
-    
+    if (!is_dir($dir)) { mkdir($dir, 0777, true); }
     if (!file_exists($filePath)) {
         $initialData = [
-            'settings' => [
-                'admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd',
-                'qr_image_url' => '' // Opsyonal: Pwedeng lagyan ng link ng QR Ph image
-            ],
+            'settings' => ['admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd', 'qr_image_url' => ''],
             'users' => [],
             'transactions' => []
         ];
@@ -27,19 +19,14 @@ function loadData($filePath) {
     $content = file_get_contents($filePath);
     $data = json_decode($content, true) ?? [];
     if (!isset($data['settings'])) {
-        $data['settings'] = [
-            'admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd',
-            'qr_image_url' => ''
-        ];
+        $data['settings'] = ['admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd', 'qr_image_url' => ''];
     }
     return $data;
 }
 
 function saveData($filePath, $data) {
     $dir = dirname($filePath);
-    if (!is_dir($dir)) {
-        mkdir($dir, 0777, true);
-    }
+    if (!is_dir($dir)) { mkdir($dir, 0777, true); }
     file_put_contents($filePath, json_encode($data, JSON_PRETTY_PRINT));
 }
 
@@ -47,16 +34,19 @@ $db = loadData($dataFile);
 $adminUsdtWallet = $db['settings']['admin_wallet'] ?? 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd';
 $qrImageUrl = $db['settings']['qr_image_url'] ?? '';
 
-// Capture referral parameter from link
 if (isset($_GET['ref'])) {
     $_SESSION['referred_by'] = htmlspecialchars($_GET['ref']);
 }
 
-// Plans definition (15 Days + Auto Re-invest)
+// Investment Plans styled like the screenshots
 $plans = [
-    'Starter Plan' => ['price' => 10, 'return_daily' => 0.80, 'days' => 15],
-    'Growth Plan'  => ['price' => 50, 'return_daily' => 4.00, 'days' => 15],
-    'Pro Plan'     => ['price' => 200, 'return_daily' => 16.00, 'days' => 15]
+    'Bonduelle-1' => ['price' => 300, 'return_daily' => 50.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
+    'Bonduelle-2' => ['price' => 700, 'return_daily' => 125.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
+    'Bonduelle-3' => ['price' => 1500, 'return_daily' => 285.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
+    'Bonduelle-4' => ['price' => 3000, 'return_daily' => 600.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
+    'Bonduelle-5' => ['price' => 7000, 'return_daily' => 1500.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
+    'Bonduelle-6' => ['price' => 15000, 'return_daily' => 3430.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
+    'Bonduelle-7' => ['price' => 30000, 'return_daily' => 7370.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png']
 ];
 
 // USER REGISTRATION
@@ -71,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } else {
         $db['users'][$username] = [
             'password' => password_hash($password, PASSWORD_DEFAULT),
-            'balance' => 0.00,
+            'balance' => 100.00, // Free 100 sign up bonus
             'referred_by' => $_SESSION['referred_by'] ?? 'None',
             'created_at' => date('Y-m-d H:i:s')
         ];
@@ -96,7 +86,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// USER LOGOUT
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     unset($_SESSION['user']);
     header("Location: /");
@@ -120,23 +109,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
     exit();
 }
 
-// ADMIN UPDATE SETTINGS
+// ADMIN SETTINGS UPDATE
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_admin_settings') {
     $newWallet = trim($_POST['new_admin_wallet'] ?? '');
-    $newQrUrl = trim($_POST['new_qr_image_url'] ?? '');
-    
     if (!empty($newWallet)) {
         $db['settings']['admin_wallet'] = htmlspecialchars($newWallet);
         $adminUsdtWallet = $newWallet;
     }
-    $db['settings']['qr_image_url'] = htmlspecialchars($newQrUrl);
-    $qrImageUrl = $newQrUrl;
-
     saveData($dataFile, $db);
-    $adminSuccess = "Matagumpay na na-update ang Secure Admin Settings!";
+    $adminSuccess = "Matagumpay na na-update ang Admin Wallet!";
 }
 
-// ADMIN APPROVE DEPOSIT
+// ADMIN APPROVALS
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve_deposit'])) {
     $txnId = $_GET['approve_deposit'];
     foreach ($db['transactions'] as &$txn) {
@@ -154,7 +138,6 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     exit();
 }
 
-// ADMIN APPROVE WITHDRAWAL
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve_withdraw'])) {
     $txnId = $_GET['approve_withdraw'];
     foreach ($db['transactions'] as &$txn) {
@@ -168,47 +151,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     exit();
 }
 
-// ADMIN DIRECT MANAGE FUNDS (DEPOSIT / PULLOUT)
-if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_adjust_fund') {
-    $targetUser = trim($_POST['target_user'] ?? '');
-    $adjustAmount = floatval($_POST['adjust_amount'] ?? 0);
-    $type = $_POST['adjust_type'] ?? 'add';
-
-    if (isset($db['users'][$targetUser]) && $adjustAmount > 0) {
-        if ($type === 'add') {
-            $db['users'][$targetUser]['balance'] += $adjustAmount;
-            $db['transactions'][] = [
-                'id' => 'ADM-DEP-' . time(),
-                'username' => $targetUser,
-                'type' => 'admin_deposit',
-                'amount' => $adjustAmount,
-                'status' => 'approved',
-                'created_at' => date('Y-m-d H:i:s')
-            ];
-            $adminSuccess = "Nalagyan ng $adjustAmount USDT si $targetUser.";
-        } elseif ($type === 'deduct') {
-            $db['users'][$targetUser]['balance'] -= $adjustAmount;
-            if ($db['users'][$targetUser]['balance'] < 0) {
-                $db['users'][$targetUser]['balance'] = 0;
-            }
-            $db['transactions'][] = [
-                'id' => 'ADM-PULL-' . time(),
-                'username' => $targetUser,
-                'type' => 'admin_pullout',
-                'amount' => $adjustAmount,
-                'destination_wallet' => $adminUsdtWallet,
-                'status' => 'completed',
-                'created_at' => date('Y-m-d H:i:s')
-            ];
-            $adminSuccess = "Na-pullout ang $adjustAmount USDT kay $targetUser papuntang Admin Binance Wallet.";
-        }
-        saveData($dataFile, $db);
-    } else {
-        $adminErrorMsg = "Hindi nahanap ang user o mali ang halaga.";
-    }
-}
-
-// Logged-in User Context
+// CURRENT USER
 $currentUser = $_SESSION['user'] ?? null;
 $userData = $currentUser ? ($db['users'][$currentUser] ?? null) : null;
 $referralLink = $currentUser ? ('http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $currentUser) : '';
@@ -218,43 +161,43 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
     $amount = floatval($_POST['deposit_amount'] ?? 0);
     $refNo = trim($_POST['ref_no'] ?? '');
 
-    if ($amount < 5) {
-        $error = "Ang minimum deposit ay $5 USDT.";
+    if ($amount < 100) {
+        $error = "Ang minimum recharge ay ₱100.";
     } elseif (empty($refNo)) {
-        $error = "Mangyaring ilagay ang TXID / Reference Number ng iyong transaksiyon.";
+        $error = "Ilagay ang Transaction Reference No. / TXID.";
     } else {
         $db['transactions'][] = [
             'id' => 'TXN-' . time(),
             'username' => $currentUser,
-            'type' => 'usdt_deposit',
+            'type' => 'recharge',
             'amount' => $amount,
             'txid' => htmlspecialchars($refNo),
             'status' => 'pending',
             'created_at' => date('Y-m-d H:i:s')
         ];
         saveData($dataFile, $db);
-        $success = "Naisumite na ang iyong deposit request! Antayin ang beripikasyon ng admin.";
+        $success = "Matagumpay na naisumite ang recharge request! Antayin ang beripikasyon.";
     }
 }
 
-// USER WITHDRAWAL REQUEST
+// USER WITHDRAWAL
 if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'request_withdraw') {
     $amount = floatval($_POST['withdraw_amount'] ?? 0);
     $wallet = trim($_POST['user_wallet'] ?? '');
     $currentBalance = $userData['balance'] ?? 0;
 
-    if ($amount < 5) {
-        $error = "Ang minimum withdrawal ay 5 USDT.";
+    if ($amount < 100) {
+        $error = "Ang minimum withdrawal ay ₱100.";
     } elseif ($amount > $currentBalance) {
-        $error = "Hindi sapat ang iyong balance para mag-withdraw.";
+        $error = "Hindi sapat ang iyong balance.";
     } elseif (empty($wallet)) {
-        $error = "Mangyaring ilagay ang iyong USDT wallet address / Account No.";
+        $error = "Ilagay ang iyong GCash / Wallet details.";
     } else {
         $db['users'][$currentUser]['balance'] -= $amount;
         $db['transactions'][] = [
             'id' => 'WD-' . time(),
             'username' => $currentUser,
-            'type' => 'usdt_withdraw',
+            'type' => 'withdraw',
             'amount' => $amount,
             'wallet' => htmlspecialchars($wallet),
             'status' => 'pending',
@@ -262,36 +205,31 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         ];
         saveData($dataFile, $db);
         $userData = $db['users'][$currentUser];
-        $success = "Naisumite na ang iyong withdrawal request! Iproseso ito ng admin sa lalong madaling panahon.";
+        $success = "Naisumite na ang withdrawal request!";
     }
 }
 
-// USER PLAN SUBSCRIPTION
+// SUBSCRIBE PLAN
 if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'subscribe') {
-    $selectedPlanKey = $_POST['plan_name'] ?? 'Starter Plan';
-    $currentBalance = $userData['balance'] ?? 0;
-    
-    if (!isset($plans[$selectedPlanKey])) {
-        $error = "Invalid investment plan selected.";
-    } else {
-        $plan = $plans[$selectedPlanKey];
-        if ($currentBalance < $plan['price']) {
-            $error = "Hindi sapat ang iyong balance para mag-subscribe sa plan na ito.";
+    $planKey = $_POST['plan_name'] ?? '';
+    if (isset($plans[$planKey])) {
+        $plan = $plans[$planKey];
+        if ($userData['balance'] < $plan['price']) {
+            $error = "Hindi sapat ang iyong balance para sa plan na ito.";
         } else {
             $db['users'][$currentUser]['balance'] -= $plan['price'];
             $db['transactions'][] = [
                 'id' => 'SUB-' . time(),
                 'username' => $currentUser,
                 'type' => 'subscription',
-                'plan' => $selectedPlanKey,
+                'plan' => $planKey,
                 'amount' => $plan['price'],
-                'cycle' => '15 Days (Auto Re-invest)',
                 'status' => 'active',
                 'created_at' => date('Y-m-d H:i:s')
             ];
             saveData($dataFile, $db);
             $userData = $db['users'][$currentUser];
-            $success = "Matagumpay kang nag-subscribe sa $selectedPlanKey (15 Days + Re-invest)!";
+            $success = "Matagumpay na na-activate ang $planKey!";
         }
     }
 }
@@ -301,330 +239,264 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Investment Platform Dashboard</title>
+    <title>Bonduelle | Investment Platform</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; background: #1e293b; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-        h2, h3 { text-align: center; color: #38bdf8; }
-        .balance-box { background: #334155; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; font-size: 18px; font-weight: bold; }
-        .card { background: #334155; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        .wallet-address, .ref-box { background: #0f172a; padding: 10px; border-radius: 6px; font-family: monospace; word-break: break-all; color: #38bdf8; text-align: center; margin: 10px 0; font-size: 13px; }
-        .btn { display: block; width: 100%; padding: 12px; background: #22c55e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; box-sizing: border-box;}
-        .btn:hover { background: #16a34a; }
-        .btn-sub { background: #d97706; }
-        .btn-sub:hover { background: #b45309; }
-        .btn-withdraw { background: #e11d48; }
-        .btn-withdraw:hover { background: #be123c; }
-        .btn-danger { background: #ef4444; }
-        select, input[type="number"], input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
-        .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
-        .alert-error { background: #ef4444; color: white; }
-        .alert-success { background: #22c55e; color: white; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
-        th, td { border: 1px solid #475569; padding: 6px; text-align: left; }
-        th { background: #0f172a; }
-        .footer-links { text-align: center; margin-top: 20px; font-size: 13px; }
-        .footer-links a { color: #94a3b8; text-decoration: none; }
-        .footer-links a:hover { color: #38bdf8; }
-        .tab-btn { width: 48%; display: inline-block; padding: 10px; text-align: center; background: #0f172a; color: white; border-radius: 6px; cursor: pointer; }
-        .tab-btn.active { background: #38bdf8; color: #0f172a; font-weight: bold; }
-        hr { border: 0; border-top: 1px solid #475569; margin: 20px 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #071913; color: #f8fafc; margin: 0; padding-bottom: 80px; }
+        .container { max-width: 480px; margin: 0 auto; padding: 15px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 14px; color: #94a3b8; }
+        .balance-card { background: linear-gradient(135deg, #0b2e21, #0f3d2c); padding: 20px; border-radius: 14px; border: 1px solid #145332; margin-bottom: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
+        .balance-title { font-size: 13px; color: #94a3b8; }
+        .balance-amount { font-size: 32px; font-weight: bold; color: #facc15; margin-top: 5px; }
+        .sub-stats { display: flex; gap: 10px; margin-top: 15px; }
+        .sub-box { flex: 1; background: #071c15; padding: 12px; border-radius: 10px; border: 1px solid #113829; text-align: center; }
+        .sub-box-title { font-size: 11px; color: #94a3b8; }
+        .sub-box-val { font-size: 16px; font-weight: bold; color: #facc15; margin-top: 4px; }
+        
+        .menu-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 20px 0; text-align: center; }
+        .menu-item { background: #0f3d2c; padding: 12px 5px; border-radius: 12px; border: 1px solid #165b41; cursor: pointer; color: #f8fafc; font-size: 11px; text-decoration: none; }
+        .menu-item svg { width: 22px; height: 22px; fill: #facc15; margin-bottom: 4px; display: block; margin: 0 auto 4px auto; }
+        
+        .section-title { font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; color: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
+        .section-title a { font-size: 12px; color: #facc15; text-decoration: none; }
+        
+        .plan-card { background: #0b2e21; border-radius: 14px; border: 1px solid #145332; overflow: hidden; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .plan-img { width: 100%; height: 160px; object-fit: cover; background: #113829; }
+        .plan-body { padding: 15px; }
+        .yield-tag { display: inline-block; background: #facc15; color: #071913; font-weight: bold; padding: 4px 10px; border-radius: 20px; font-size: 12px; margin-bottom: 8px; }
+        .plan-name { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+        .plan-info { font-size: 12px; color: #94a3b8; margin-bottom: 12px; }
+        
+        .btn { display: block; width: 100%; padding: 12px; background: linear-gradient(135deg, #facc15, #eab308); color: #071913; border: none; border-radius: 10px; font-weight: bold; font-size: 15px; cursor: pointer; text-align: center; text-decoration: none; box-sizing: border-box; }
+        .btn-cancel { background: #1b3a2b; color: #fff; margin-top: 8px; }
+        
+        /* Bottom Navigation Bar */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #071913; border-top: 1px solid #113829; display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 0; z-index: 1000; max-width: 480px; margin: 0 auto; }
+        .nav-link { text-align: center; color: #94a3b8; text-decoration: none; font-size: 11px; }
+        .nav-link.active { color: #facc15; }
+        .nav-link svg { width: 20px; height: 20px; fill: currentColor; margin: 0 auto 2px auto; display: block; }
+        
+        .card { background: #0b2e21; padding: 15px; border-radius: 12px; border: 1px solid #145332; margin-bottom: 15px; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #165b41; background: #071913; color: white; box-sizing: border-box; }
+        .alert { padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 13px; }
+        .alert-error { background: #7f1d1d; color: #fca5a5; }
+        .alert-success { background: #145332; color: #86efac; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: flex-end; }
+        .modal-content { background: #0b2e21; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; border-top: 2px solid #facc15; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <?php if (isset($_GET['route']) && $_GET['route'] === 'admin'): ?>
-        <!-- ADMIN PANEL -->
-        <h2>Admin Panel (Secret)</h2>
+        <h2>Admin Panel</h2>
         <?php if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true): ?>
             <div class="card">
                 <form method="POST">
                     <input type="hidden" name="action" value="admin_login">
-                    <label for="password">Admin Password:</label>
-                    <input type="password" id="password" name="password" required>
-                    <button type="submit" class="btn">Mag-login</button>
-                    <?php if (isset($adminError)): ?>
-                        <div class="alert alert-error" style="margin-top: 10px;"><?= htmlspecialchars($adminError) ?></div>
-                    <?php endif; ?>
+                    <label>Admin Password:</label>
+                    <input type="password" name="password" required>
+                    <button type="submit" class="btn">Login</button>
+                    <?php if(isset($adminError)): ?><div class="alert alert-error" style="margin-top:10px;"><?= $adminError ?></div><?php endif; ?>
                 </form>
             </div>
         <?php else: ?>
-
-            <?php if (isset($adminSuccess)): ?>
-                <div class="alert alert-success"><?= htmlspecialchars($adminSuccess) ?></div>
-            <?php endif; ?>
-
-            <?php if (isset($adminErrorMsg)): ?>
-                <div class="alert alert-error"><?= htmlspecialchars($adminErrorMsg) ?></div>
-            <?php endif; ?>
-
-            <!-- SETTINGS CONTROL -->
+            <?php if(isset($adminSuccess)): ?><div class="alert alert-success"><?= $adminSuccess ?></div><?php endif; ?>
             <div class="card">
-                <h3>Admin Settings (Anonymous)</h3>
+                <h3>Admin Settings</h3>
                 <form method="POST">
                     <input type="hidden" name="action" value="update_admin_settings">
-                    <label>Binance USDT Wallet Address (TRC20/BEP20):</label>
+                    <label>Anonymous USDT Wallet Address:</label>
                     <input type="text" name="new_admin_wallet" value="<?= htmlspecialchars($adminUsdtWallet) ?>" required>
-                    
-                    <label>Optional QR Image Link (URL):</label>
-                    <input type="text" name="new_qr_image_url" value="<?= htmlspecialchars($qrImageUrl) ?>" placeholder="https://i.imgur.com/your-qr.png">
-                    
-                    <button type="submit" class="btn">I-save ang Settings</button>
+                    <button type="submit" class="btn" style="margin-top:10px;">I-save</button>
                 </form>
             </div>
-
-            <!-- ADMIN DIRECT DEPOSIT / PULLOUT CONTROL -->
             <div class="card">
-                <h3>Admin Fund Control (Deposit / Pullout)</h3>
-                <form method="POST">
-                    <input type="hidden" name="action" value="admin_adjust_fund">
-                    <label>Pumili ng Client User:</label>
-                    <select name="target_user" required>
-                        <?php foreach ($db['users'] as $uname => $uinfo): ?>
-                            <option value="<?= htmlspecialchars($uname) ?>">
-                                <?= htmlspecialchars($uname) ?> (Bal: $<?= number_format($uinfo['balance'], 2) ?> USDT)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-
-                    <label>Action:</label>
-                    <select name="adjust_type" required>
-                        <option value="deduct">Pullout Funds to Binance Wallet (I-roll sa Trading)</option>
-                        <option value="add">Manual Deposit / Add Balance</option>
-                    </select>
-
-                    <label>Amount (USDT):</label>
-                    <input type="number" name="adjust_amount" step="0.01" min="0.01" placeholder="Enter USDT Amount" required>
-
-                    <button type="submit" class="btn btn-withdraw">I-execute ang Fund Adjustment</button>
-                </form>
+                <h3>Pending Recharges</h3>
+                <?php foreach($db['transactions'] as $txn): if($txn['type'] === 'recharge' && $txn['status'] === 'pending'): ?>
+                    <div style="background:#071913; padding:10px; border-radius:8px; margin-bottom:8px; font-size:12px;">
+                        User: <b><?= $txn['username'] ?></b> | Amt: ₱<?= number_format($txn['amount'], 2) ?><br>
+                        TXID: <code><?= $txn['txid'] ?></code><br>
+                        <a href="?route=admin&approve_deposit=<?= $txn['id'] ?>" class="btn" style="padding:6px; font-size:12px; margin-top:6px;">Approve</a>
+                    </div>
+                <?php endif; endforeach; ?>
             </div>
-
-            <div class="card">
-                <h3>Pending Deposits</h3>
-                <table>
-                    <tr>
-                        <th>User</th>
-                        <th>Amount</th>
-                        <th>TXID / Ref</th>
-                        <th>Action</th>
-                    </tr>
-                    <?php 
-                    $hasPendingDep = false;
-                    foreach ($db['transactions'] as $txn): 
-                        if (strpos($txn['type'], 'deposit') !== false && $txn['status'] === 'pending'):
-                            $hasPendingDep = true;
-                    ?>
-                    <tr>
-                        <td><b><?= htmlspecialchars($txn['username']) ?></b></td>
-                        <td>$<?= number_format($txn['amount'], 2) ?></td>
-                        <td style="word-break: break-all;"><?= htmlspecialchars($txn['txid']) ?></td>
-                        <td>
-                            <a href="?route=admin&approve_deposit=<?= $txn['id'] ?>" class="btn" style="padding: 4px 8px; font-size: 10px; display:inline-block;">Approve</a>
-                        </td>
-                    </tr>
-                    <?php 
-                        endif;
-                    endforeach; 
-                    if (!$hasPendingDep):
-                    ?>
-                    <tr><td colspan="4" style="text-align: center;">Walang pending deposit.</td></tr>
-                    <?php endif; ?>
-                </table>
-            </div>
-
             <div class="card">
                 <h3>Pending Withdrawals</h3>
-                <table>
-                    <tr>
-                        <th>User</th>
-                        <th>Amount</th>
-                        <th>Wallet</th>
-                        <th>Action</th>
-                    </tr>
-                    <?php 
-                    $hasPendingWd = false;
-                    foreach ($db['transactions'] as $txn): 
-                        if ($txn['type'] === 'usdt_withdraw' && $txn['status'] === 'pending'):
-                            $hasPendingWd = true;
-                    ?>
-                    <tr>
-                        <td><b><?= htmlspecialchars($txn['username']) ?></b></td>
-                        <td>$<?= number_format($txn['amount'], 2) ?></td>
-                        <td style="word-break: break-all;"><?= htmlspecialchars($txn['wallet']) ?></td>
-                        <td>
-                            <a href="?route=admin&approve_withdraw=<?= $txn['id'] ?>" class="btn btn-sub" style="padding: 4px 8px; font-size: 10px; display:inline-block;">Done</a>
-                        </td>
-                    </tr>
-                    <?php 
-                        endif;
-                    endforeach; 
-                    if (!$hasPendingWd):
-                    ?>
-                    <tr><td colspan="4" style="text-align: center;">Walang pending withdrawal.</td></tr>
-                    <?php endif; ?>
-                </table>
-                <a href="?action=admin_logout" class="btn btn-danger" style="margin-top: 15px; text-align: center; text-decoration: none;">Mag-log out sa Admin</a>
+                <?php foreach($db['transactions'] as $txn): if($txn['type'] === 'withdraw' && $txn['status'] === 'pending'): ?>
+                    <div style="background:#071913; padding:10px; border-radius:8px; margin-bottom:8px; font-size:12px;">
+                        User: <b><?= $txn['username'] ?></b> | Amt: ₱<?= number_format($txn['amount'], 2) ?><br>
+                        Wallet: <code><?= $txn['wallet'] ?></code><br>
+                        <a href="?route=admin&approve_withdraw=<?= $txn['id'] ?>" class="btn" style="padding:6px; font-size:12px; margin-top:6px; background:#22c55e; color:#fff;">Mark as Done</a>
+                    </div>
+                <?php endif; endforeach; ?>
+                <a href="?action=admin_logout" class="btn" style="background:#ef4444; color:#fff; margin-top:15px; text-align:center;">Logout Admin</a>
             </div>
         <?php endif; ?>
-        <div class="footer-links">
-            <a href="/">Balik sa User Dashboard</a>
-        </div>
 
     <?php elseif (!$currentUser): ?>
-        <!-- LOGIN / REGISTER FORM -->
-        <h2>Investment Platform</h2>
-
-        <?php if (isset($_SESSION['referred_by'])): ?>
-            <div class="alert alert-success">Inimbita ka ni: <b><?= htmlspecialchars($_SESSION['referred_by']) ?></b></div>
-        <?php endif; ?>
-
-        <?php if (isset($authError)): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($authError) ?></div>
-        <?php endif; ?>
-
-        <div style="margin-bottom: 15px;">
-            <div id="tabLoginBtn" class="tab-btn active" onclick="showTab('login')">Mag-Login</div>
-            <div id="tabRegBtn" class="tab-btn" onclick="showTab('register')">Mag-Register</div>
+        <div style="text-align:center; padding: 40px 0;">
+            <h2 style="color: #facc15;">Bonduelle Portal</h2>
+            <p style="color: #94a3b8; font-size: 13px;">Mag-login o mag-register para magsimula.</p>
         </div>
-
-        <div id="loginCard" class="card">
-            <h3>Login sa iyong Account</h3>
+        
+        <?php if(isset($authError)): ?><div class="alert alert-error"><?= $authError ?></div><?php endif; ?>
+        
+        <div class="card">
             <form method="POST">
                 <input type="hidden" name="action" value="login">
                 <label>Username:</label>
                 <input type="text" name="username" required>
                 <label>Password:</label>
                 <input type="password" name="password" required>
-                <button type="submit" class="btn">Login</button>
+                <button type="submit" class="btn" style="margin-top: 10px;">Login</button>
             </form>
         </div>
 
-        <div id="registerCard" class="card" style="display: none;">
-            <h3>Gumawa ng Bagong Account</h3>
+        <div class="card" style="margin-top: 20px;">
+            <h3 style="margin-top: 0; color: #facc15; font-size: 15px;">Wala pang account? Register na (May Free ₱100 Bonus!)</h3>
             <form method="POST">
                 <input type="hidden" name="action" value="register">
                 <label>Username:</label>
                 <input type="text" name="username" required>
                 <label>Password:</label>
                 <input type="password" name="password" required>
-                <button type="submit" class="btn" style="background: #38bdf8; color: #0f172a;">Register</button>
+                <button type="submit" class="btn" style="background: #22c55e; color: #fff; margin-top: 10px;">Register Now</button>
             </form>
+        </div>
+        <div style="text-align: center; margin-top: 20px;"><a href="?route=admin" style="color: #94a3b8; font-size: 12px; text-decoration: none;">Admin Panel</a></div>
+
+    <?php else: ?>
+        <!-- USER DASHBOARD (Bonduelle Theme) -->
+        <div class="header-top">
+            <span>Good day, <b><?= htmlspecialchars($currentUser) ?></b></span>
+            <a href="?action=logout" style="color: #ef4444; text-decoration: none; font-size: 12px;">Logout</a>
+        </div>
+
+        <div class="balance-card">
+            <div class="balance-title">My balance</div>
+            <div class="balance-amount">₱<?= number_format($userData['balance'] ?? 0, 2) ?></div>
+            <div class="sub-stats">
+                <div class="sub-box">
+                    <div class="sub-box-title">RECHARGE BALANCE</div>
+                    <div class="sub-box-val">₱0.00</div>
+                </div>
+                <div class="sub-box">
+                    <div class="sub-box-title">EARNED BALANCE</div>
+                    <div class="sub-box-val">₱<?= number_format($userData['balance'] ?? 0, 2) ?></div>
+                </div>
+            </div>
+        </div>
+
+        <?php if(isset($success)): ?><div class="alert alert-success"><?= $success ?></div><?php endif; ?>
+        <?php if(isset($error)): ?><div class="alert alert-error"><?= $error ?></div><?php endif; ?>
+
+        <!-- Action Menu Buttons -->
+        <div class="menu-grid">
+            <div class="menu-item" onclick="openModal('rechargeModal')">
+                <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                Recharge
+            </div>
+            <div class="menu-item" onclick="openModal('withdrawModal')">
+                <svg viewBox="0 0 24 24"><path d="M5 4h14v2H5V4zm0 10h4v6h6v-6h4l-7-7-7 7z"/></svg>
+                Withdrawal
+            </div>
+            <div class="menu-item" onclick="alert('Referral Link: <?= $referralLink ?>')">
+                <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                Share
+            </div>
+            <div class="menu-item" onclick="alert('Account active & verified!')">
+                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                Claimed
+            </div>
+            <div class="menu-item" onclick="alert('Bonuses unlocked via team invites!')">
+                <svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 4H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4v-2h16v2z"/></svg>
+                Treasure
+            </div>
+        </div>
+
+        <div class="section-title">
+            <span>Product Investment</span>
+        </div>
+
+        <!-- Products List -->
+        <?php foreach ($plans as $pName => $pData): ?>
+        <div class="plan-card">
+            <div class="plan-body">
+                <div class="yield-tag">₱<?= number_format($pData['return_daily'], 2) ?> DAILY YIELD</div>
+                <div class="plan-name"><?= $pName ?></div>
+                <div class="plan-info">Period: <?= $pData['days'] ?> Days | Value: ₱<?= number_format($pData['price'], 2) ?></div>
+                
+                <form method="POST">
+                    <input type="hidden" name="action" value="subscribe">
+                    <input type="hidden" name="plan_name" value="<?= $pName ?>">
+                    <button type="submit" class="btn">Invest Now (₱<?= number_format($pData['price'], 2) ?>)</button>
+                </form>
+            </div>
+        </div>
+        <?php endforeach; ?>
+
+        <!-- RECHARGE MODAL -->
+        <div id="rechargeModal" class="modal">
+            <div class="modal-content">
+                <h3 style="color: #facc15; margin-top: 0;">Recharge Funds (USDT)</h3>
+                <p style="font-size: 12px; color: #94a3b8;">Magpadala ng USDT TRC20 sa anonymous address:</p>
+                <div style="background: #071913; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; color: #38bdf8; word-break: break-all; text-align: center; margin-bottom: 10px;"><?= $adminUsdtWallet ?></div>
+                <form method="POST">
+                    <input type="hidden" name="action" value="submit_deposit">
+                    <label>Amount (PHP Equivalent / USDT):</label>
+                    <input type="number" name="deposit_amount" min="100" value="300" required>
+                    <label>Transaction TXID / Reference No:</label>
+                    <input type="text" name="ref_no" placeholder="Ilagay ang TXID mula sa Binance" required>
+                    <button type="submit" class="btn" style="margin-top: 10px;">Submit Recharge</button>
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('rechargeModal')">Cancel</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- WITHDRAWAL MODAL -->
+        <div id="withdrawModal" class="modal">
+            <div class="modal-content">
+                <h3 style="color: #facc15; margin-top: 0;">Request Withdrawal</h3>
+                <form method="POST">
+                    <input type="hidden" name="action" value="request_withdraw">
+                    <label>Amount (₱):</label>
+                    <input type="number" name="withdraw_amount" min="100" value="100" required>
+                    <label>GCash Number o USDT Wallet:</label>
+                    <input type="text" name="user_wallet" placeholder="Ilagay ang GCash # o Address" required>
+                    <button type="submit" class="btn" style="margin-top: 10px;">Confirm Withdrawal</button>
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('withdrawModal')">Cancel</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <div class="bottom-nav">
+            <a href="/" class="nav-link active">
+                <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                Home
+            </a>
+            <a href="#" class="nav-link" onclick="alert('Orders & Active Plans tab')">
+                <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                Orders
+            </a>
+            <a href="#" class="nav-link" onclick="alert('Instructions & Rules')">
+                <svg viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
+                Instructions
+            </a>
+            <a href="#" class="nav-link" onclick="alert('Team / Referrals: <?= $referralLink ?>')">
+                <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                Team
+            </a>
+            <a href="#" class="nav-link" onclick="alert('Account Settings & Balance')">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                My
+            </a>
         </div>
 
         <script>
-            function showTab(tab) {
-                if (tab === 'login') {
-                    document.getElementById('loginCard').style.display = 'block';
-                    document.getElementById('registerCard').style.display = 'none';
-                    document.getElementById('tabLoginBtn').className = 'tab-btn active';
-                    document.getElementById('tabRegBtn').className = 'tab-btn';
-                } else {
-                    document.getElementById('loginCard').style.display = 'none';
-                    document.getElementById('registerCard').style.display = 'block';
-                    document.getElementById('tabLoginBtn').className = 'tab-btn';
-                    document.getElementById('tabRegBtn').className = 'tab-btn active';
-                }
-            }
+            function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+            function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         </script>
-
-        <div class="footer-links">
-            <a href="?route=admin">Admin Login</a>
-        </div>
-
-    <?php else: ?>
-        <!-- LOGGED-IN DASHBOARD -->
-        <h2>Welcome, <?= htmlspecialchars($currentUser) ?>!</h2>
-
-        <div class="balance-box">
-            Balance: $<?= number_format($userData['balance'] ?? 0, 2) ?> USDT
-        </div>
-
-        <?php if (isset($success)): ?>
-            <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
-        <?php endif; ?>
-
-        <?php if (isset($error)): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
-
-        <!-- Referral Section -->
-        <div class="card">
-            <h3>Iyong Permanent Referral Link</h3>
-            <div class="ref-box"><?= htmlspecialchars($referralLink) ?></div>
-            <button type="button" class="btn" style="background: #38bdf8; color: #0f172a;" onclick="navigator.clipboard.writeText('<?= $referralLink ?>'); alert('Copied na ang referral link!');">Kopyahin ang Referral Link</button>
-        </div>
-
-        <hr>
-
-        <!-- Deposit Section -->
-        <div class="card">
-            <h3>Mag-deposit via USDT (TRC20)</h3>
-            <p style="font-size: 13px; color: #94a3b8;">I-transfer ang USDT sa anonymous wallet address sa ibaba:</p>
-            
-            <div class="wallet-address"><?= htmlspecialchars($adminUsdtWallet) ?></div>
-
-            <?php if (!empty($qrImageUrl)): ?>
-                <div style="text-align: center; margin: 10px 0;">
-                    <img src="<?= htmlspecialchars($qrImageUrl) ?>" alt="Deposit QR Code" style="max-width: 180px; border-radius: 8px;">
-                </div>
-            <?php endif; ?>
-
-            <form method="POST" style="margin-top: 15px;">
-                <input type="hidden" name="action" value="submit_deposit">
-
-                <label for="deposit_amount">Halaga (USDT):</label>
-                <input type="number" id="deposit_amount" name="deposit_amount" min="5" step="0.01" value="20" required>
-                
-                <label for="ref_no">Transaction Hash / TXID:</label>
-                <input type="text" id="ref_no" name="ref_no" placeholder="Ilagay ang TXID mula sa Binance/Wallet" required>
-
-                <button type="submit" class="btn">I-submit ang Deposit Proof</button>
-            </form>
-        </div>
-
-        <hr>
-
-        <!-- Subscription Section -->
-        <div class="card">
-            <h3>Mag-subscribe sa Plan</h3>
-            <form method="POST">
-                <input type="hidden" name="action" value="subscribe">
-                <label for="plan_name">Pumili ng Investment Plan:</label>
-                <select name="plan_name" id="plan_name">
-                    <?php foreach ($plans as $name => $details): ?>
-                        <option value="<?= htmlspecialchars($name) ?>">
-                            <?= htmlspecialchars($name) ?> (Dep: $<?= number_format($details['price'], 2) ?> | $<?= number_format($details['return_daily'], 2) ?>/day | 15 Days + Re-invest)
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <button type="submit" class="btn btn-sub">Mag-subscribe sa Plan</button>
-            </form>
-        </div>
-
-        <hr>
-
-        <!-- Withdrawal Section -->
-        <div class="card">
-            <h3>Mag-request ng Withdrawal</h3>
-            <form method="POST">
-                <input type="hidden" name="action" value="request_withdraw">
-                <label for="withdraw_amount">Halaga ng Iwi-withdraw (USDT):</label>
-                <input type="number" id="withdraw_amount" name="withdraw_amount" min="5" step="0.01" placeholder="Minimum: 5 USDT" required>
-                
-                <label for="user_wallet">Iyong USDT Wallet Address:</label>
-                <input type="text" id="user_wallet" name="user_wallet" placeholder="Ilagay ang TRC20/BEP20 Address mo" required>
-
-                <button type="submit" class="btn btn-withdraw">I-request ang Withdrawal</button>
-            </form>
-        </div>
-
-        <a href="?action=logout" class="btn btn-danger" style="margin-top: 20px; text-decoration: none;">Mag-log out</a>
-
-        <div class="footer-links">
-            <a href="?route=admin">Admin Login</a>
-        </div>
     <?php endif; ?>
 </div>
 

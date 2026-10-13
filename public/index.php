@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// Configuration: Palitan ang iyong USDT Wallet at Secret Admin Password
+// Configuration: Ilagay ang iyong Binance USDT Wallet Address at Secret Admin Password
 $adminUsdtWallet = 'TUxYourUsdtWalletAddressHere123456789'; 
 $adminSecretPassword = 'admin123'; 
 $dataFile = __DIR__ . '/../data/system_data.json';
@@ -140,7 +140,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     exit();
 }
 
-// ADMIN DIRECT MANAGE FUNDS (DEPOSIT / PULLOUT)
+// ADMIN DIRECT MANAGE FUNDS (DEPOSIT / PULLOUT TO BINANCE WALLET)
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_adjust_fund') {
     $targetUser = trim($_POST['target_user'] ?? '');
     $adjustAmount = floatval($_POST['adjust_amount'] ?? 0);
@@ -168,10 +168,11 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['
                 'username' => $targetUser,
                 'type' => 'admin_pullout',
                 'amount' => $adjustAmount,
+                'destination_wallet' => $adminUsdtWallet,
                 'status' => 'completed',
                 'created_at' => date('Y-m-d H:i:s')
             ];
-            $adminSuccess = "Na-pullout/bawas ang $adjustAmount USDT kay $targetUser.";
+            $adminSuccess = "Na-pullout ang $adjustAmount USDT kay $targetUser papuntang Admin Binance Wallet ($adminUsdtWallet).";
         }
         saveData($dataFile, $db);
     } else {
@@ -333,6 +334,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             <!-- ADMIN DIRECT DEPOSIT / PULLOUT CONTROL -->
             <div class="card">
                 <h3>Admin Fund Control (Deposit / Pullout)</h3>
+                <p style="font-size: 12px; color: #94a3b8;">Destination Binance Wallet: <b><?= htmlspecialchars($adminUsdtWallet) ?></b></p>
                 <form method="POST">
                     <input type="hidden" name="action" value="admin_adjust_fund">
                     <label>Pumili ng Client User:</label>
@@ -346,7 +348,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
 
                     <label>Action:</label>
                     <select name="adjust_type" required>
-                        <option value="deduct">Pullout / Deduct Funds (Pondo papuntang Trading)</option>
+                        <option value="deduct">Pullout Funds to Binance Wallet (I-roll sa Trading)</option>
                         <option value="add">Manual Deposit / Add Balance</option>
                     </select>
 

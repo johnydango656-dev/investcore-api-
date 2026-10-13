@@ -14,7 +14,7 @@ function loadData($filePath) {
     
     if (!file_exists($filePath)) {
         $initialData = [
-            'settings' => ['admin_wallet' => 'TUxYourUsdtWalletAddressHere123456789'],
+            'settings' => ['admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd'],
             'users' => [],
             'transactions' => []
         ];
@@ -24,7 +24,7 @@ function loadData($filePath) {
     $content = file_get_contents($filePath);
     $data = json_decode($content, true) ?? [];
     if (!isset($data['settings'])) {
-        $data['settings'] = ['admin_wallet' => 'TUxYourUsdtWalletAddressHere123456789'];
+        $data['settings'] = ['admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd'];
     }
     return $data;
 }
@@ -38,7 +38,7 @@ function saveData($filePath, $data) {
 }
 
 $db = loadData($dataFile);
-$adminUsdtWallet = $db['settings']['admin_wallet'] ?? 'TUxYourUsdtWalletAddressHere123456789';
+$adminUsdtWallet = $db['settings']['admin_wallet'] ?? 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd';
 
 // Capture referral parameter from link
 if (isset($_GET['ref'])) {

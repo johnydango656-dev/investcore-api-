@@ -37,7 +37,7 @@ if (isset($_GET['ref'])) {
     $_SESSION['referred_by'] = htmlspecialchars($_GET['ref']);
 }
 
-// Investment Plans (Customized Names)
+// Investment Plans
 $plans = [
     'Apex-Yield 1' => ['price' => 300, 'return_daily' => 50.00, 'days' => 240],
     'Apex-Yield 2' => ['price' => 700, 'return_daily' => 125.00, 'days' => 240],
@@ -119,7 +119,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['
     $adminSuccess = "Matagumpay na na-update ang Admin Wallet!";
 }
 
-// ADMIN DIRECT FUND ADJUSTMENT (PULLOUT TO TRADING / MANUAL DEPOSIT)
+// ADMIN DIRECT FUND ADJUSTMENT
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_adjust_fund') {
     $targetUser = trim($_POST['target_user'] ?? '');
     $adjustAmount = floatval($_POST['adjust_amount'] ?? 0);
@@ -327,7 +327,7 @@ if ($currentUser && isset($db['transactions'])) {
         .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: flex-end; }
         .modal-content { background: #0b2e21; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; border-top: 2px solid #facc15; box-sizing: border-box; max-height: 85vh; overflow-y: auto; }
         
-        /* Center Notice Popup Modal (Katulad ng huling screenshot) */
+        /* Notice Popup Modal */
         .notice-modal { display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 3000; justify-content: center; align-items: center; }
         .notice-box { background: linear-gradient(135deg, #0b2e21, #0f3d2c); width: 85%; max-width: 340px; border-radius: 20px; padding: 25px 20px; border: 1px solid #165b41; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .notice-icon { background: #facc15; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px auto; }
@@ -429,6 +429,7 @@ if ($currentUser && isset($db['transactions'])) {
         <?php endif; ?>
 
     <?php elseif (isset($_GET['route']) && $_GET['route'] === 'gateway'): ?>
+        <!-- SIMULATED SECURE PAYMENT GATEWAY PAGE WITH TIMEOUT -->
         <?php 
             $gatewayAmt = $_GET['amount'] ?? 300;
             $gatewayMethod = $_GET['method'] ?? 'GCash';
@@ -452,6 +453,7 @@ if ($currentUser && isset($db['transactions'])) {
                 <a href="https://m.gcash.com" target="_blank" class="btn" style="background: #2563eb; color: #fff; margin-bottom: 10px; border-radius: 8px;">Open in <?= htmlspecialchars($gatewayMethod) ?> App</a>
                 <a href="/" class="btn" style="background: #e2e8f0; color: #334155; margin-bottom: 30px;">Tapos Na / Balik sa Dashboard</a>
 
+                <!-- COUNTDOWN TIMER FLOATING BUTTON -->
                 <div id="paymentTimeoutBadge" style="position: fixed; bottom: 20px; right: 20px; background: #2563eb; color: #ffffff; padding: 10px 18px; border-radius: 8px; font-weight: bold; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999;">
                     Payment Timeout : <span id="timerCountdown">15:00</span>
                 </div>
@@ -509,15 +511,16 @@ if ($currentUser && isset($db['transactions'])) {
         <div style="text-align: center; margin-top: 20px;"><a href="?route=admin" style="color: #94a3b8; font-size: 12px; text-decoration: none;">Admin Panel</a></div>
 
     <?php else: ?>
-        <!-- CUSTOMER SERVICE / OFFICIAL GROUP POP-UP MODAL (Katulad sa huling screenshot) -->
+        <!-- CUSTOMER SERVICE / OFFICIAL GROUP POP-UP MODAL -->
         <div id="noticeModal" class="notice-modal">
             <div class="notice-box">
                 <button class="close-btn" onclick="closeNotice()">×</button>
                 <div class="notice-icon">
                     <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
                 </div>
-                <a href="https://t.me/" target="_blank" class="btn" style="margin-bottom: 12px; text-decoration: none; display: block;">Customer Service</a>
-                <a href="https://t.me/" target="_blank" class="btn" style="background: #0f3d2c; color: #facc15; border: 1px solid #165b41; margin-bottom: 12px; text-decoration: none; display: block;">Official Group</a>
+                <!-- DIRECTED TO TELEGRAM CHANNEL (https://t.me/ApexestOfficial) -->
+                <a href="https://t.me/ApexestOfficial" target="_blank" class="btn" style="margin-bottom: 12px; text-decoration: none; display: block;">Customer Service</a>
+                <a href="https://t.me/ApexestOfficial" target="_blank" class="btn" style="background: #0f3d2c; color: #facc15; border: 1px solid #165b41; margin-bottom: 12px; text-decoration: none; display: block;">Official Group</a>
                 <span onclick="closeNotice()" style="color: #94a3b8; font-size: 13px; cursor: pointer; text-decoration: underline;">Skip</span>
             </div>
         </div>

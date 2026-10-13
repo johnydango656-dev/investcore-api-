@@ -16,7 +16,7 @@ function loadData($filePath) {
         $initialData = [
             'settings' => [
                 'admin_wallet' => 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd',
-                'hitpay_link' => 'https://hitpay.link/your-business-link' // Palitan ng totoong HitPay link mo
+                'hitpay_link' => 'https://hitpay.link/your-business-link'
             ],
             'users' => [],
             'transactions' => []
@@ -120,7 +120,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
     exit();
 }
 
-// ADMIN UPDATE SETTINGS (BINANCE WALLET & HITPAY LINK)
+// ADMIN UPDATE SETTINGS
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_admin_settings') {
     $newWallet = trim($_POST['new_admin_wallet'] ?? '');
     $newHitpay = trim($_POST['new_hitpay_link'] ?? '');
@@ -169,7 +169,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     exit();
 }
 
-// ADMIN DIRECT MANAGE FUNDS (DEPOSIT / PULLOUT)
+// ADMIN DIRECT MANAGE FUNDS
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_adjust_fund') {
     $targetUser = trim($_POST['target_user'] ?? '');
     $adjustAmount = floatval($_POST['adjust_amount'] ?? 0);
@@ -214,7 +214,7 @@ $currentUser = $_SESSION['user'] ?? null;
 $userData = $currentUser ? ($db['users'][$currentUser] ?? null) : null;
 $referralLink = $currentUser ? ('http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $currentUser) : '';
 
-// USER DEPOSIT SUBMISSION (USDT or HitPay / GCash / QR Ph)
+// USER DEPOSIT SUBMISSION
 if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_deposit') {
     $amount = floatval($_POST['deposit_amount'] ?? 0);
     $method = $_POST['deposit_method'] ?? 'USDT';
@@ -223,7 +223,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
     if ($amount < 5) {
         $error = "Ang minimum deposit ay $5 / equivalent.";
     } elseif (empty($refNo)) {
-        $error = "Mangyaring ilagay ang TXID / Reference Number ng bayad.";
+        $error = "Mangyaring ilagay ang Transaction Hash (TXID) o HitPay Reference Number.";
     } else {
         $db['transactions'][] = [
             'id' => 'TXN-' . time(),
@@ -319,6 +319,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         .btn-withdraw:hover { background: #be123c; }
         .btn-danger { background: #ef4444; }
         .btn-hitpay { background: #0284c7; }
+        .step-badge { background: #38bdf8; color: #0f172a; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; margin-right: 5px; }
         select, input[type="number"], input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
         .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
         .alert-error { background: #ef4444; color: white; }
@@ -563,28 +564,34 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
 
         <!-- Deposit Section -->
         <div class="card">
-            <h3>Mag-deposit (HitPay / GCash / QR Ph & USDT)</h3>
+            <h3>Mag-deposit via GCash / HitPay o USDT</h3>
             
-            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 5px;">Option 1: Magbayad via HitPay (GCash / QR Ph / Maya)</p>
-            <a href="<?= htmlspecialchars($hitpayLink) ?>" target="_blank" class="btn btn-hitpay" style="margin-bottom: 15px;">Pumunta sa HitPay Payment Gateway</a>
+            <p style="font-size: 13px; color: #94a3b8;"><span class="step-badge">STEP 1</span> Magbayad muna gamit ang napiling paraan:</p>
 
-            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 5px;">Option 2: Direct USDT Wallet Address (TRC20)</p>
+            <a href="<?= htmlspecialchars($hitpayLink) ?>" target="_blank" class="btn btn-hitpay" style="margin-bottom: 12px;">Pumunta sa HitPay (GCash / QR Ph) Page</a>
+
+            <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 8px 0;">— O KAYA —</p>
+            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">Direct USDT (TRC20) Wallet Address:</p>
             <div class="wallet-address"><?= htmlspecialchars($adminUsdtWallet) ?></div>
 
-            <form method="POST" style="margin-top: 15px;">
+            <hr style="border-top: 1px dashed #475569;">
+
+            <p style="font-size: 13px; color: #94a3b8;"><span class="step-badge">STEP 2</span> Isumite ang resibo / reference number pagkatapos magbayad:</p>
+
+            <form method="POST">
                 <input type="hidden" name="action" value="submit_deposit">
                 
-                <label>Paraan ng Pagbayad:</label>
+                <label>Saan ka nagbayad?:</label>
                 <select name="deposit_method">
-                    <option value="USDT">USDT Wallet Transfer</option>
                     <option value="HitPay_QRPH">HitPay / GCash / QR Ph</option>
+                    <option value="USDT">USDT Wallet Transfer</option>
                 </select>
 
                 <label for="deposit_amount">Halaga (USDT / USD Equivalent):</label>
                 <input type="number" id="deposit_amount" name="deposit_amount" min="5" step="0.01" value="20" required>
                 
-                <label for="ref_no">Transaction Hash (TXID) / HitPay Ref No:</label>
-                <input type="text" id="ref_no" name="ref_no" placeholder="Ilagay ang TXID o Ref No mula sa GCash/HitPay" required>
+                <label for="ref_no">HitPay Reference No. / USDT TXID:</label>
+                <input type="text" id="ref_no" name="ref_no" placeholder="Ilagay ang Ref No mula sa GCash/HitPay o TXID" required>
 
                 <button type="submit" class="btn">I-submit ang Deposit Proof</button>
             </form>

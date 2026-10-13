@@ -32,21 +32,20 @@ function saveData($filePath, $data) {
 
 $db = loadData($dataFile);
 $adminUsdtWallet = $db['settings']['admin_wallet'] ?? 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd';
-$qrImageUrl = $db['settings']['qr_image_url'] ?? '';
 
 if (isset($_GET['ref'])) {
     $_SESSION['referred_by'] = htmlspecialchars($_GET['ref']);
 }
 
-// Investment Plans styled like the screenshots
+// Investment Plans
 $plans = [
-    'Bonduelle-1' => ['price' => 300, 'return_daily' => 50.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
-    'Bonduelle-2' => ['price' => 700, 'return_daily' => 125.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
-    'Bonduelle-3' => ['price' => 1500, 'return_daily' => 285.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
-    'Bonduelle-4' => ['price' => 3000, 'return_daily' => 600.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
-    'Bonduelle-5' => ['price' => 7000, 'return_daily' => 1500.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
-    'Bonduelle-6' => ['price' => 15000, 'return_daily' => 3430.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png'],
-    'Bonduelle-7' => ['price' => 30000, 'return_daily' => 7370.00, 'days' => 240, 'img' => 'https://i.imgur.com/83Z0icp.png']
+    'Bonduelle-1' => ['price' => 300, 'return_daily' => 50.00, 'days' => 240],
+    'Bonduelle-2' => ['price' => 700, 'return_daily' => 125.00, 'days' => 240],
+    'Bonduelle-3' => ['price' => 1500, 'return_daily' => 285.00, 'days' => 240],
+    'Bonduelle-4' => ['price' => 3000, 'return_daily' => 600.00, 'days' => 240],
+    'Bonduelle-5' => ['price' => 7000, 'return_daily' => 1500.00, 'days' => 240],
+    'Bonduelle-6' => ['price' => 15000, 'return_daily' => 3430.00, 'days' => 240],
+    'Bonduelle-7' => ['price' => 30000, 'return_daily' => 7370.00, 'days' => 240]
 ];
 
 // USER REGISTRATION
@@ -167,7 +166,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         $error = "Ilagay ang Transaction Reference No. / TXID.";
     } else {
         $db['transactions'][] = [
-            'id' => 'TXN-' . time(),
+            'id' => 'RECH-' . time(),
             'username' => $currentUser,
             'type' => 'recharge',
             'amount' => $amount,
@@ -233,6 +232,16 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         }
     }
 }
+
+// Filter user specific transactions
+$userTxns = [];
+if ($currentUser && isset($db['transactions'])) {
+    foreach ($db['transactions'] as $t) {
+        if (isset($t['username']) && $t['username'] === $currentUser) {
+            $userTxns[] = $t;
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -257,10 +266,8 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         .menu-item svg { width: 22px; height: 22px; fill: #facc15; margin-bottom: 4px; display: block; margin: 0 auto 4px auto; }
         
         .section-title { font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; color: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
-        .section-title a { font-size: 12px; color: #facc15; text-decoration: none; }
         
         .plan-card { background: #0b2e21; border-radius: 14px; border: 1px solid #145332; overflow: hidden; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-        .plan-img { width: 100%; height: 160px; object-fit: cover; background: #113829; }
         .plan-body { padding: 15px; }
         .yield-tag { display: inline-block; background: #facc15; color: #071913; font-weight: bold; padding: 4px 10px; border-radius: 20px; font-size: 12px; margin-bottom: 8px; }
         .plan-name { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 4px; }
@@ -271,7 +278,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         
         /* Bottom Navigation Bar */
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #071913; border-top: 1px solid #113829; display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 0; z-index: 1000; max-width: 480px; margin: 0 auto; }
-        .nav-link { text-align: center; color: #94a3b8; text-decoration: none; font-size: 11px; }
+        .nav-link { text-align: center; color: #94a3b8; text-decoration: none; font-size: 11px; cursor: pointer; }
         .nav-link.active { color: #facc15; }
         .nav-link svg { width: 20px; height: 20px; fill: currentColor; margin: 0 auto 2px auto; display: block; }
         
@@ -280,8 +287,13 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         .alert { padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 13px; }
         .alert-error { background: #7f1d1d; color: #fca5a5; }
         .alert-success { background: #145332; color: #86efac; }
-        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: flex-end; }
-        .modal-content { background: #0b2e21; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; border-top: 2px solid #facc15; box-sizing: border-box; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: flex-end; }
+        .modal-content { background: #0b2e21; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 20px; border-top: 2px solid #facc15; box-sizing: border-box; max-height: 80vh; overflow-y: auto; }
+        
+        .history-card { background: #071913; border: 1px solid #145332; padding: 12px; border-radius: 10px; margin-bottom: 10px; font-size: 12px; }
+        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform: uppercase; float: right; }
+        .status-pending { background: #d97706; color: #fff; }
+        .status-approved, .status-completed { background: #22c55e; color: #fff; }
     </style>
 </head>
 <body>
@@ -366,7 +378,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         <div style="text-align: center; margin-top: 20px;"><a href="?route=admin" style="color: #94a3b8; font-size: 12px; text-decoration: none;">Admin Panel</a></div>
 
     <?php else: ?>
-        <!-- USER DASHBOARD (Bonduelle Theme) -->
+        <!-- USER DASHBOARD -->
         <div class="header-top">
             <span>Good day, <b><?= htmlspecialchars($currentUser) ?></b></span>
             <a href="?action=logout" style="color: #ef4444; text-decoration: none; font-size: 12px;">Logout</a>
@@ -404,9 +416,9 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
                 Share
             </div>
-            <div class="menu-item" onclick="alert('Account active & verified!')">
-                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                Claimed
+            <div class="menu-item" onclick="openModal('historyModal')">
+                <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                History
             </div>
             <div class="menu-item" onclick="alert('Bonuses unlocked via team invites!')">
                 <svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 4H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4v-2h16v2z"/></svg>
@@ -469,28 +481,52 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             </div>
         </div>
 
+        <!-- TRANSACTION / ORDERS HISTORY MODAL -->
+        <div id="historyModal" class="modal">
+            <div class="modal-content">
+                <h3 style="color: #facc15; margin-top: 0;">Transaction History</h3>
+                <?php if (empty($userTxns)): ?>
+                    <p style="font-size: 12px; color: #94a3b8; text-align: center;">Wala ka pang transaksiyon.</p>
+                <?php else: ?>
+                    <?php foreach (array_reverse($userTxns) as $txn): ?>
+                        <div class="history-card">
+                            <span class="status-badge status-<?= $txn['status'] ?>"><?= strtoupper($txn['status']) ?></span>
+                            <div style="font-weight: bold; color: #f8fafc; font-size: 13px;">
+                                <?= strtoupper($txn['type']) ?> - ₱<?= number_format($txn['amount'], 2) ?>
+                            </div>
+                            <div style="color: #94a3b8; font-size: 11px; margin-top: 4px;">
+                                ID: <?= $txn['id'] ?><br>
+                                Date: <?= $txn['created_at'] ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                <button type="button" class="btn btn-cancel" onclick="closeModal('historyModal')">Isara</button>
+            </div>
+        </div>
+
         <!-- Bottom Navigation -->
         <div class="bottom-nav">
-            <a href="/" class="nav-link active">
+            <div class="nav-link active" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
                 <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
                 Home
-            </a>
-            <a href="#" class="nav-link" onclick="alert('Orders & Active Plans tab')">
+            </div>
+            <div class="nav-link" onclick="openModal('historyModal')">
                 <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
                 Orders
-            </a>
-            <a href="#" class="nav-link" onclick="alert('Instructions & Rules')">
+            </div>
+            <div class="nav-link" onclick="openModal('rechargeModal')">
                 <svg viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
-                Instructions
-            </a>
-            <a href="#" class="nav-link" onclick="alert('Team / Referrals: <?= $referralLink ?>')">
+                Recharge
+            </div>
+            <div class="nav-link" onclick="openModal('withdrawModal')">
                 <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                Team
-            </a>
-            <a href="#" class="nav-link" onclick="alert('Account Settings & Balance')">
+                Withdraw
+            </div>
+            <div class="nav-link" onclick="openModal('historyModal')">
                 <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
                 My
-            </a>
+            </div>
         </div>
 
         <script>

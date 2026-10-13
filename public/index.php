@@ -16,14 +16,13 @@ function loadData($filePath) {
     if (!file_exists($filePath)) {
         $initialData = [
             'users' => [],
-            'balances' => ['user_balance' => 0.00],
             'transactions' => []
         ];
         file_put_contents($filePath, json_encode($initialData, JSON_PRETTY_PRINT));
         return $initialData;
     }
     $content = file_get_contents($filePath);
-    return json_decode($content, true) ?? ['users' => [], 'balances' => ['user_balance' => 0.00], 'transactions' => []];
+    return json_decode($content, true) ?? ['users' => [], 'transactions' => []];
 }
 
 function saveData($filePath, $data) {
@@ -36,26 +35,63 @@ function saveData($filePath, $data) {
 
 $db = loadData($dataFile);
 
-// Generate unique referral code for user session
-if (!isset($_SESSION['ref_code'])) {
-    $_SESSION['ref_code'] = 'REF' . rand(100000, 999999);
-}
-$userRefCode = $_SESSION['ref_code'];
-$referralLink = 'http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $userRefCode;
-
-// Capture referral if someone visits via link
+// Capture referral parameter from link
 if (isset($_GET['ref'])) {
     $_SESSION['referred_by'] = htmlspecialchars($_GET['ref']);
 }
 
-// Plans definition (15 Days + Auto Re-invest Cycle)
+// Plans definition (15 Days + Auto Re-invest)
 $plans = [
-    'Starter Plan' => ['price' => 10, 'return_daily' => 0.80, 'days' => 15, 'reinvest' => true],
-    'Growth Plan'  => ['price' => 50, 'return_daily' => 4.00, 'days' => 15, 'reinvest' => true],
-    'Pro Plan'     => ['price' => 200, 'return_daily' => 16.00, 'days' => 15, 'reinvest' => true]
+    'Starter Plan' => ['price' => 10, 'return_daily' => 0.80, 'days' => 15],
+    'Growth Plan'  => ['price' => 50, 'return_daily' => 4.00, 'days' => 15],
+    'Pro Plan'     => ['price' => 200, 'return_daily' => 16.00, 'days' => 15]
 ];
 
-// Admin Authentication Action
+// USER REGISTRATION
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'register') {
+    $username = strtolower(trim($_POST['username'] ?? ''));
+    $password = trim($_POST['password'] ?? '');
+
+    if (empty($username) || empty($password)) {
+        $authError = "Punan ang username at password.";
+    } elseif (isset($db['users'][$username])) {
+        $authError = "May gumagamit na ng username na ito.";
+    } else {
+        $db['users'][$username] = [
+            'password' => password_hash($password, PASSWORD_DEFAULT),
+            'balance' => 0.00,
+            'referred_by' => $_SESSION['referred_by'] ?? 'None',
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        saveData($dataFile, $db);
+        $_SESSION['user'] = $username;
+        header("Location: /");
+        exit();
+    }
+}
+
+// USER LOGIN
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'login') {
+    $username = strtolower(trim($_POST['username'] ?? ''));
+    $password = trim($_POST['password'] ?? '');
+
+    if (isset($db['users'][$username]) && password_verify($password, $db['users'][$username]['password'])) {
+        $_SESSION['user'] = $username;
+        header("Location: /");
+        exit();
+    } else {
+        $authError = "Maling username o password.";
+    }
+}
+
+// USER LOGOUT
+if (isset($_GET['action']) && $_GET['action'] === 'logout') {
+    unset($_SESSION['user']);
+    header("Location: /");
+    exit();
+}
+
+// ADMIN LOGIN / LOGOUT
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'admin_login') {
     if ($_POST['password'] === $adminSecretPassword) {
         $_SESSION['is_admin'] = true;
@@ -72,13 +108,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
     exit();
 }
 
-// Admin Action: Approve Transaction
+// ADMIN APPROVE DEPOSIT
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GET['approve'])) {
     $txnId = $_GET['approve'];
     foreach ($db['transactions'] as &$txn) {
         if ($txn['id'] === $txnId && $txn['status'] === 'pending') {
             $txn['status'] = 'approved';
-            $db['balances']['user_balance'] = ($db['balances']['user_balance'] ?? 0) + $txn['amount'];
+            $u = $txn['username'];
+            if (isset($db['users'][$u])) {
+                $db['users'][$u]['balance'] += $txn['amount'];
+            }
             saveData($dataFile, $db);
             break;
         }
@@ -87,8 +126,13 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
     exit();
 }
 
-// User Action: Submit USDT Deposit Proof
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_deposit') {
+// Logged-in User Context
+$currentUser = $_SESSION['user'] ?? null;
+$userData = $currentUser ? ($db['users'][$currentUser] ?? null) : null;
+$referralLink = $currentUser ? ('http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $currentUser) : '';
+
+// USER DEPOSIT SUBMISSION
+if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_deposit') {
     $amount = floatval($_POST['deposit_amount'] ?? 0);
     $txid = trim($_POST['txid'] ?? '');
 
@@ -99,10 +143,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } else {
         $db['transactions'][] = [
             'id' => 'TXN-' . time(),
+            'username' => $currentUser,
             'type' => 'usdt_deposit',
             'amount' => $amount,
             'txid' => htmlspecialchars($txid),
-            'referred_by' => $_SESSION['referred_by'] ?? 'None',
             'status' => 'pending',
             'created_at' => date('Y-m-d H:i:s')
         ];
@@ -111,10 +155,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// User Action: Subscribe to Plan
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'subscribe') {
+// USER PLAN SUBSCRIPTION
+if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'subscribe') {
     $selectedPlanKey = $_POST['plan_name'] ?? 'Starter Plan';
-    $currentBalance = $db['balances']['user_balance'] ?? 0;
+    $currentBalance = $userData['balance'] ?? 0;
     
     if (!isset($plans[$selectedPlanKey])) {
         $error = "Invalid investment plan selected.";
@@ -123,9 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($currentBalance < $plan['price']) {
             $error = "Hindi sapat ang iyong balance para mag-subscribe sa plan na ito.";
         } else {
-            $db['balances']['user_balance'] -= $plan['price'];
+            $db['users'][$currentUser]['balance'] -= $plan['price'];
             $db['transactions'][] = [
                 'id' => 'TXN-' . time(),
+                'username' => $currentUser,
                 'type' => 'subscription',
                 'plan' => $selectedPlanKey,
                 'amount' => $plan['price'],
@@ -134,6 +179,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'created_at' => date('Y-m-d H:i:s')
             ];
             saveData($dataFile, $db);
+            // Refresh user data
+            $userData = $db['users'][$currentUser];
             $success = "Matagumpay kang nag-subscribe sa $selectedPlanKey (15 Days + Re-invest)!";
         }
     }
@@ -152,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .balance-box { background: #334155; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; font-size: 18px; font-weight: bold; }
         .card { background: #334155; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
         .wallet-address, .ref-box { background: #0f172a; padding: 10px; border-radius: 6px; font-family: monospace; word-break: break-all; color: #38bdf8; text-align: center; margin: 10px 0; font-size: 13px; }
-        .btn { display: block; width: 100%; padding: 12px; background: #22c55e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; }
+        .btn { display: block; width: 100%; padding: 12px; background: #22c55e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; text-decoration: none; margin-top: 10px; box-sizing: border-box;}
         .btn:hover { background: #16a34a; }
         .btn-sub { background: #d97706; }
         .btn-sub:hover { background: #b45309; }
@@ -167,6 +214,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .footer-links { text-align: center; margin-top: 20px; font-size: 13px; }
         .footer-links a { color: #94a3b8; text-decoration: none; }
         .footer-links a:hover { color: #38bdf8; }
+        .tab-btn { width: 48%; display: inline-block; padding: 10px; text-align: center; background: #0f172a; color: white; border-radius: 6px; cursor: pointer; }
+        .tab-btn.active { background: #38bdf8; color: #0f172a; font-weight: bold; }
         hr { border: 0; border-top: 1px solid #475569; margin: 20px 0; }
     </style>
 </head>
@@ -174,6 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 <div class="container">
     <?php if (isset($_GET['route']) && $_GET['route'] === 'admin'): ?>
+        <!-- ADMIN PANEL -->
         <h2>Admin Panel (Secret)</h2>
         <?php if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true): ?>
             <div class="card">
@@ -192,8 +242,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <p>Welcome, Admin! Narito ang mga pending deposits:</p>
                 <table>
                     <tr>
-                        <th>ID / Date</th>
-                        <th>Amount / Ref</th>
+                        <th>User / Date</th>
+                        <th>Amount</th>
                         <th>TXID</th>
                         <th>Action</th>
                     </tr>
@@ -204,8 +254,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $hasPending = true;
                     ?>
                     <tr>
-                        <td><?= htmlspecialchars($txn['id']) ?><br><small><?= htmlspecialchars($txn['created_at']) ?></small></td>
-                        <td>$<?= number_format($txn['amount'], 2) ?><br><small>Ref: <?= htmlspecialchars($txn['referred_by'] ?? 'None') ?></small></td>
+                        <td><b><?= htmlspecialchars($txn['username']) ?></b><br><small><?= htmlspecialchars($txn['created_at']) ?></small></td>
+                        <td>$<?= number_format($txn['amount'], 2) ?></td>
                         <td style="word-break: break-all;"><?= htmlspecialchars($txn['txid']) ?></td>
                         <td>
                             <a href="?route=admin&approve=<?= $txn['id'] ?>" class="btn" style="padding: 5px 10px; font-size: 11px; display:inline-block;">Approve</a>
@@ -223,14 +273,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         <?php endif; ?>
         <div class="footer-links">
-            <a href="/">Balik sa User Dashboard</a>
+            <a href="/">Balik sa Dashboard</a>
+        </div>
+
+    <?php elseif (!$currentUser): ?>
+        <!-- LOGIN / REGISTER FORM -->
+        <h2>Investment Platform</h2>
+
+        <?php if (isset($_SESSION['referred_by'])): ?>
+            <div class="alert alert-success">Inimbita ka ni: <b><?= htmlspecialchars($_SESSION['referred_by']) ?></b></div>
+        <?php endif; ?>
+
+        <?php if (isset($authError)): ?>
+            <div class="alert alert-error"><?= htmlspecialchars($authError) ?></div>
+        <?php endif; ?>
+
+        <div style="margin-bottom: 15px;">
+            <div id="tabLoginBtn" class="tab-btn active" onclick="showTab('login')">Mag-Login</div>
+            <div id="tabRegBtn" class="tab-btn" onclick="showTab('register')">Mag-Register</div>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <div id="loginCard" class="card">
+            <h3>Login sa iyong Account</h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="login">
+                <label>Username:</label>
+                <input type="text" name="username" required>
+                <label>Password:</label>
+                <input type="password" name="password" required>
+                <button type="submit" class="btn">Login</button>
+            </form>
+        </div>
+
+        <!-- REGISTER FORM -->
+        <div id="registerCard" class="card" style="display: none;">
+            <h3>Gumawa ng Bagong Account</h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="register">
+                <label>Username:</label>
+                <input type="text" name="username" required>
+                <label>Password:</label>
+                <input type="password" name="password" required>
+                <button type="submit" class="btn" style="background: #38bdf8; color: #0f172a;">Register</button>
+            </form>
+        </div>
+
+        <script>
+            function showTab(tab) {
+                if (tab === 'login') {
+                    document.getElementById('loginCard').style.display = 'block';
+                    document.getElementById('registerCard').style.display = 'none';
+                    document.getElementById('tabLoginBtn').className = 'tab-btn active';
+                    document.getElementById('tabRegBtn').className = 'tab-btn';
+                } else {
+                    document.getElementById('loginCard').style.display = 'none';
+                    document.getElementById('registerCard').style.display = 'block';
+                    document.getElementById('tabLoginBtn').className = 'tab-btn';
+                    document.getElementById('tabRegBtn').className = 'tab-btn active';
+                }
+            }
+        </script>
+
+        <div class="footer-links">
+            <a href="?route=admin">Admin Login</a>
         </div>
 
     <?php else: ?>
-        <h2>Investment Dashboard</h2>
+        <!-- LOGGED-IN DASHBOARD -->
+        <h2>Welcome, <?= htmlspecialchars($currentUser) ?>!</h2>
 
         <div class="balance-box">
-            Balance: $<?= number_format($db['balances']['user_balance'] ?? 0, 2) ?> USDT
+            Balance: $<?= number_format($userData['balance'] ?? 0, 2) ?> USDT
         </div>
 
         <?php if (isset($success)): ?>
@@ -243,9 +357,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         <!-- Referral Section -->
         <div class="card">
-            <h3>Iyong Referral Link</h3>
-            <p style="font-size: 13px; color: #94a3b8;">I-share ang link na ito sa iyong mga kaibigan para ma-track kung sino ang nag-invite sa kanila:</p>
-            <div class="ref-box" id="refLinkText"><?= htmlspecialchars($referralLink) ?></div>
+            <h3>Iyong Permanent Referral Link</h3>
+            <p style="font-size: 13px; color: #94a3b8;">Kopyahin at ipasa ang link na ito sa iyong mga kakilala para ikaw ang kanilang inviter:</p>
+            <div class="ref-box"><?= htmlspecialchars($referralLink) ?></div>
             <button type="button" class="btn" style="background: #38bdf8; color: #0f172a;" onclick="navigator.clipboard.writeText('<?= $referralLink ?>'); alert('Copied na ang referral link!');">Kopyahin ang Referral Link</button>
         </div>
 
@@ -290,6 +404,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <button type="submit" class="btn btn-sub">Mag-subscribe sa Plan</button>
             </form>
         </div>
+
+        <a href="?action=logout" class="btn btn-danger" style="margin-top: 20px; text-decoration: none;">Mag-log out</a>
 
         <div class="footer-links">
             <a href="?route=admin">Admin Login</a>

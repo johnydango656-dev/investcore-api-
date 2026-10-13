@@ -214,16 +214,17 @@ $currentUser = $_SESSION['user'] ?? null;
 $userData = $currentUser ? ($db['users'][$currentUser] ?? null) : null;
 $referralLink = $currentUser ? ('http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $currentUser) : '';
 
-// USER DEPOSIT SUBMISSION
+// USER DEPOSIT SUBMISSION (Optional na ang TXID para hindi mag-error)
 if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_deposit') {
     $amount = floatval($_POST['deposit_amount'] ?? 0);
     $method = $_POST['deposit_method'] ?? 'USDT';
     $refNo = trim($_POST['ref_no'] ?? '');
+    if (empty($refNo)) {
+        $refNo = 'AUTO-TXN-' . rand(1000, 9999);
+    }
 
     if ($amount < 5) {
         $error = "Ang minimum deposit ay $5 / equivalent.";
-    } elseif (empty($refNo)) {
-        $error = "Mangyaring ilagay ang Transaction Hash (TXID) o HitPay Reference Number.";
     } else {
         $db['transactions'][] = [
             'id' => 'TXN-' . time(),
@@ -235,7 +236,7 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             'created_at' => date('Y-m-d H:i:s')
         ];
         saveData($dataFile, $db);
-        $success = "Naisumite na ang iyong deposit proof! Naghihintay ng beripikasyon ng admin.";
+        $success = "Naisumite na ang iyong deposit request! Antayin ang beripikasyon ng admin.";
     }
 }
 
@@ -319,7 +320,6 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         .btn-withdraw:hover { background: #be123c; }
         .btn-danger { background: #ef4444; }
         .btn-hitpay { background: #0284c7; }
-        .step-badge { background: #38bdf8; color: #0f172a; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; margin-right: 5px; }
         select, input[type="number"], input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
         .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
         .alert-error { background: #ef4444; color: white; }
@@ -566,22 +566,18 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
         <div class="card">
             <h3>Mag-deposit via GCash / HitPay o USDT</h3>
             
-            <p style="font-size: 13px; color: #94a3b8;"><span class="step-badge">STEP 1</span> Magbayad muna gamit ang napiling paraan:</p>
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 8px;">Pumili kung saan magbabayad:</p>
+            <a href="<?= htmlspecialchars($hitpayLink) ?>" target="_blank" class="btn btn-hitpay" style="margin-bottom: 12px;">Magbayad via HitPay (GCash / QR Ph)</a>
 
-            <a href="<?= htmlspecialchars($hitpayLink) ?>" target="_blank" class="btn btn-hitpay" style="margin-bottom: 12px;">Pumunta sa HitPay (GCash / QR Ph) Page</a>
-
-            <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 8px 0;">— O KAYA —</p>
-            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">Direct USDT (TRC20) Wallet Address:</p>
+            <p style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">O i-transfer sa USDT (TRC20) Wallet:</p>
             <div class="wallet-address"><?= htmlspecialchars($adminUsdtWallet) ?></div>
 
             <hr style="border-top: 1px dashed #475569;">
 
-            <p style="font-size: 13px; color: #94a3b8;"><span class="step-badge">STEP 2</span> Isumite ang resibo / reference number pagkatapos magbayad:</p>
-
             <form method="POST">
                 <input type="hidden" name="action" value="submit_deposit">
                 
-                <label>Saan ka nagbayad?:</label>
+                <label>Paraan ng Pagbayad:</label>
                 <select name="deposit_method">
                     <option value="HitPay_QRPH">HitPay / GCash / QR Ph</option>
                     <option value="USDT">USDT Wallet Transfer</option>
@@ -590,10 +586,10 @@ if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
                 <label for="deposit_amount">Halaga (USDT / USD Equivalent):</label>
                 <input type="number" id="deposit_amount" name="deposit_amount" min="5" step="0.01" value="20" required>
                 
-                <label for="ref_no">HitPay Reference No. / USDT TXID:</label>
-                <input type="text" id="ref_no" name="ref_no" placeholder="Ilagay ang Ref No mula sa GCash/HitPay o TXID" required>
+                <label for="ref_no">Reference No. / TXID (Opsyonal):</label>
+                <input type="text" id="ref_no" name="ref_no" placeholder="Ilagay ang Ref No kung meron na">
 
-                <button type="submit" class="btn">I-submit ang Deposit Proof</button>
+                <button type="submit" class="btn">I-submit ang Deposit Request</button>
             </form>
         </div>
 

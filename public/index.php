@@ -428,7 +428,7 @@ if ($currentUser && isset($db['transactions'])) {
 
     <?php elseif (isset($_GET['route']) && $_GET['route'] === 'gateway'): ?>
         <!-- CLOUD GCEEPAY GATEWAY (CLEAN & EXACT CLONE) -->
-        <?>
+        <?php 
             $gatewayAmt = $_GET['amount'] ?? 300;
             $gatewayMethod = $_GET['method'] ?? 'GCash';
             $txnId = $_GET['txn'] ?? 'PAY-' . time();

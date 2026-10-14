@@ -1,5 +1,8 @@
 <?php
-// index.php - Payment Gateway UI
+// index.php - Investment Platform & Payment Gateway
+session_start();
+
+// Database o iba pang core configurations kung kinakailangan
 $transactionId = $_GET['tx'] ?? 'PAY-' . rand(1000000000, 9999999999);
 $amount = $_GET['amount'] ?? '300.00';
 ?>
@@ -8,7 +11,7 @@ $amount = $_GET['amount'] ?? '300.00';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GCash Payment Gateway</title>
+    <title>Investment Platform - Secure Deposit</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f7f6; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 400px; padding: 24px; text-align: center; }
@@ -23,10 +26,10 @@ $amount = $_GET['amount'] ?? '300.00';
 </head>
 <body>
     <div class="card">
-        <div class="header">GCash Secure Payment</div>
+        <div class="header">Investment Platform Deposit</div>
         
-        <!-- Smart GCash Button -->
-        <a href="gcash://" class="btn">Open in GCash</a>
+        <!-- Direct GCash App Launch Button -->
+        <a href="intent://#Intent;scheme=gcash;package=com.telacuity.gcashweb;end" class="btn">Open in GCash</a>
         
         <div style="color: #666; font-size: 13px; margin-bottom: 15px;">or Scan/Upload this QR code in GCash App</div>
         

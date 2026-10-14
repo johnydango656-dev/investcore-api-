@@ -3,7 +3,9 @@ session_start();
 
 $adminSecretPassword = 'admin123'; 
 $dataFile = __DIR__ . '/../data/system_data.json';
-$uploadDir = __DIR__ . '/../public/uploads/';
+
+// PERMANENT BASE64 INSTAPAY QR CODE
+$defaultInstapayQr = 'data:image/jpeg;base64,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';
 
 function loadData($filePath) {
     $dir = dirname($filePath);
@@ -33,13 +35,13 @@ function saveData($filePath, $data) {
 
 $db = loadData($dataFile);
 $adminUsdtWallet = $db['settings']['admin_wallet'] ?? 'TKXeJE2mXMAoFFcjE8E1LctQDNmjo9HVxd';
-$adminQrImageUrl = $db['settings']['qr_image_url'] ?? '';
+$adminQrImageUrl = !empty($db['settings']['qr_image_url']) ? $db['settings']['qr_image_url'] : $defaultInstapayQr;
 
 if (isset($_GET['ref'])) {
     $_SESSION['referred_by'] = htmlspecialchars($_GET['ref']);
 }
 
-// Investment Plans (30 Days Period)
+// Investment Plans
 $plans = [
     'Apex-Yield 1' => ['price' => 300, 'return_daily' => 50.00, 'days' => 30],
     'Apex-Yield 2' => ['price' => 700, 'return_daily' => 125.00, 'days' => 30],
@@ -110,27 +112,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'admin_logout') {
     exit();
 }
 
-// ADMIN SETTINGS & QR UPLOAD UPDATE
+// ADMIN SETTINGS UPDATE
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_admin_settings') {
     $newWallet = trim($_POST['new_admin_wallet'] ?? '');
     if (!empty($newWallet)) {
         $db['settings']['admin_wallet'] = htmlspecialchars($newWallet);
         $adminUsdtWallet = $newWallet;
     }
-
-    if (isset($_FILES['qr_image']) && $_FILES['qr_image']['error'] === UPLOAD_ERR_OK) {
-        if (!is_dir($uploadDir)) { mkdir($uploadDir, 0777, true); }
-        $ext = pathinfo($_FILES['qr_image']['name'], PATHINFO_EXTENSION);
-        $filename = 'admin_qr_' . time() . '.' . $ext;
-        $targetPath = $uploadDir . $filename;
-        if (move_uploaded_file($_FILES['qr_image']['tmp_name'], $targetPath)) {
-            $db['settings']['qr_image_url'] = '/uploads/' . $filename;
-            $adminQrImageUrl = '/uploads/' . $filename;
-        }
-    }
-
     saveData($dataFile, $db);
-    $adminSuccess = "Matagumpay na na-update ang Admin Settings at QR Code!";
+    $adminSuccess = "Matagumpay na na-update ang Admin Settings!";
 }
 
 // ADMIN DIRECT FUND ADJUSTMENT
@@ -407,18 +397,11 @@ if ($currentUser && isset($db['transactions'])) {
             </div>
 
             <div class="card">
-                <h3>Admin Wallet & QR Code Settings</h3>
-                <form method="POST" enctype="multipart/form-data">
+                <h3>Admin Wallet Settings</h3>
+                <form method="POST">
                     <input type="hidden" name="action" value="update_admin_settings">
                     <label>Anonymous USDT Wallet Address:</label>
                     <input type="text" name="new_admin_wallet" value="<?= htmlspecialchars($adminUsdtWallet) ?>" required>
-                    
-                    <label style="margin-top: 10px; display:block;">Mag-upload ng InstaPay QR Code (Image):</label>
-                    <?php if (!empty($adminQrImageUrl)): ?>
-                        <div style="margin: 8px 0;"><img src="<?= htmlspecialchars($adminQrImageUrl) ?>" alt="Current QR" style="width: 100px; border-radius: 6px; border: 1px solid #165b41;"></div>
-                    <?php endif; ?>
-                    <input type="file" name="qr_image" accept="image/*" style="background:none; border:none; padding:5px 0;">
-
                     <button type="submit" class="btn" style="margin-top:10px;">I-save Settings</button>
                 </form>
             </div>
@@ -448,7 +431,7 @@ if ($currentUser && isset($db['transactions'])) {
         <?php endif; ?>
 
     <?php elseif (isset($_GET['route']) && $_GET['route'] === 'gateway'): ?>
-        <!-- CLOUD GCEEPAY GATEWAY (CUSTOM INSTAPAY QR) -->
+        <!-- CLOUD GCEEPAY GATEWAY WITH INSTAPAY QR EMBEDDED -->
         <?php 
             $gatewayAmt = $_GET['amount'] ?? 300;
             $gatewayMethod = $_GET['method'] ?? 'GCash';
@@ -468,14 +451,10 @@ if ($currentUser && isset($db['transactions'])) {
                     Scan or upload this QR code using your <?= htmlspecialchars($gatewayMethod) ?> App
                 </p>
 
-                <!-- QR CODE BOX (CUSTOM ADMIN QR IMAGE) -->
+                <!-- INSTAPAY QR DISPLAY -->
                 <div style="text-align: center; margin-bottom: 25px;">
                     <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                        <?php if (!empty($adminQrImageUrl)): ?>
-                            <img src="<?= htmlspecialchars($adminQrImageUrl) ?>" alt="InstaPay Payment QR" style="display: block; width: 220px; height: 220px; border-radius: 6px; object-fit: contain;">
-                        <?php else: ?>
-                            <p style="color: #ef4444; font-size: 12px; padding: 40px;">Walang naka-upload na QR code ang Admin.</p>
-                        <?php endif; ?>
+                        <img src="<?= $adminQrImageUrl ?>" alt="InstaPay Payment QR" style="display: block; width: 220px; height: 220px; border-radius: 6px; object-fit: contain;">
                     </div>
                 </div>
 

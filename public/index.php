@@ -190,7 +190,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && isset($_GE
 // CURRENT USER
 $currentUser = $_SESSION['user'] ?? null;
 $userData = $currentUser ? ($db['users'][$currentUser] ?? null) : null;
-$referralLink = $currentUser ? ('http://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $currentUser) : '';
+$referralLink = $currentUser ? ('https://' . $_SERVER['HTTP_HOST'] . '/?ref=' . $currentUser) : '';
 
 // USER RECHARGE SUBMISSION
 if ($currentUser && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_recharge') {
@@ -427,7 +427,6 @@ if ($currentUser && isset($db['transactions'])) {
         <?php endif; ?>
 
     <?php elseif (isset($_GET['route']) && $_GET['route'] === 'gateway'): ?>
-        <!-- CLOUD GCEEPAY GATEWAY (STATIC INSTAPAY QR + OPEN IN APP) -->
         <?php 
             $gatewayAmt = $_GET['amount'] ?? 300;
             $gatewayMethod = $_GET['method'] ?? 'GCash';
@@ -447,7 +446,6 @@ if ($currentUser && isset($db['transactions'])) {
                     Securely complete the payment with your <?= htmlspecialchars($gatewayMethod) ?> App
                 </p>
 
-                <!-- OPEN IN APP BUTTON -->
                 <button type="button" onclick="launchApp('<?= htmlspecialchars($gatewayMethod) ?>')" style="display: block; width: 100%; background: #1b6ef3; color: #fff; text-align: center; padding: 16px; border-radius: 30px; font-weight: bold; font-size: 15px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(27,110,243,0.3); margin-bottom: 25px;">
                     Open in <?= htmlspecialchars($gatewayMethod) ?>
                 </button>
@@ -457,14 +455,12 @@ if ($currentUser && isset($db['transactions'])) {
                     <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: -8px;">
                 </div>
 
-                <!-- INSTAPAY QR IMAGE DISPLAY (qr.jpg) -->
                 <div style="text-align: center; margin-bottom: 25px;">
                     <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
                         <img src="/qr.jpg" alt="InstaPay Payment QR" style="display: block; width: 220px; height: 220px; border-radius: 6px; object-fit: contain;">
                     </div>
                 </div>
 
-                <!-- PAYMENT SUMMARY -->
                 <div style="background: #f8fafc; border-radius: 10px; padding: 15px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
                     <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 8px;">
                         <span>Transaction ID</span>
@@ -486,7 +482,6 @@ if ($currentUser && isset($db['transactions'])) {
                 </a>
             </div>
 
-            <!-- TIMEOUT BADGE -->
             <div style="position: fixed; bottom: 20px; right: 20px; background: #1b6ef3; color: #ffffff; padding: 10px 18px; border-radius: 20px; font-weight: bold; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999;">
                 Payment Timeout : <span id="timerCountdown">15:00</span>
             </div>
@@ -603,7 +598,7 @@ if ($currentUser && isset($db['transactions'])) {
                 <svg viewBox="0 0 24 24"><path d="M5 4h14v2H5V4zm0 10h4v6h6v-6h4l-7-7-7 7z"/></svg>
                 Withdrawal
             </div>
-            <div class="menu-item" onclick="alert('Referral Link: <?= $referralLink ?>')">
+            <div class="menu-item" onclick="openModal('shareModal')">
                 <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
                 Share
             </div>
@@ -636,6 +631,19 @@ if ($currentUser && isset($db['transactions'])) {
             </div>
         </div>
         <?php endforeach; ?>
+
+        <!-- SHARE / REFERRAL MODAL -->
+        <div id="shareModal" class="modal">
+            <div class="modal-content">
+                <h3 style="color: #facc15; margin-top: 0;">Referral Link</h3>
+                <p style="font-size: 13px; color: #94a3b8; margin-bottom: 10px;">I-share ang iyong link para makakuha ng bonus kapag nag-invest ang iyong mga naimbitahan!</p>
+                
+                <input type="text" id="refLinkInput" value="<?= htmlspecialchars($referralLink) ?>" readonly style="background: #071913; color: #facc15; font-weight: bold; text-align: center;">
+                
+                <button type="button" class="btn" onclick="copyReferralLink()" style="margin-top: 10px; background: #22c55e; color: #fff;">Copy Referral Link</button>
+                <button type="button" class="btn btn-cancel" onclick="closeModal('shareModal')">Isara</button>
+            </div>
+        </div>
 
         <div id="rechargeModal" class="modal">
             <div class="modal-content">
@@ -733,6 +741,17 @@ if ($currentUser && isset($db['transactions'])) {
             function openNotice() { document.getElementById('noticeModal').style.display = 'flex'; }
             function closeNotice() { document.getElementById('noticeModal').style.display = 'none'; }
             
+            function copyReferralLink() {
+                var copyText = document.getElementById("refLinkInput");
+                copyText.select();
+                copyText.setSelectionRange(0, 99999); // Para sa mobile devices
+                navigator.clipboard.writeText(copyText.value).then(function() {
+                    alert("Na-kopya na ang referral link sa clipboard!");
+                }, function(err) {
+                    alert("Hindi nakopya. Paki-manual select na lang.");
+                });
+            }
+
             function setMethod(method) {
                 document.getElementById('paymentMethodInput').value = method;
                 if(method === 'GCash') {
